@@ -1,0 +1,899 @@
+-- Reopened restaurants table																								
+																								
+CREATE OR REPLACE TEMP TABLE tmp_returned AS																								
+SELECT DATE_KEY as date_o																								
+, RESTAURANT_ZONE_CODE																								
+, rs.RESTAURANT_SEGMENT																								
+, rom.restaurant_id as rx_id																								
+, IFF(SUM(open_mins_trimmed)> 10,1,0) as was_open																								
+, MAX(was_open) OVER (PARTITION BY rx_id ORDER BY date_o ASC ROWS BETWEEN 8 preceding AND 1 preceding) as past_8days_open																								
+, IFF(was_open = 1 AND past_8days_open = 0,1,0) as is_returned																								
+FROM PRODUCTION.AGGREGATE.RESTAURANT_OPS_METRICS_HOURLY rom																								
+LEFT JOIN production.reference.restaurant_segmentation  AS rs																								
+ON rom.RESTAURANT_ID = rs.restaurant_id																								
+AND rs.date_quarter = DATE_TRUNC(quarter,CURRENT_DATE)																								
+WHERE TRUE																								
+AND restaurant_country_name = 'France'																								
+AND DATEDIFF(days,date_key,CURRENT_DATE) < 17																								
+GROUP BY 1,2,3,4																								
+ORDER BY 1;																								
+																								
+-- Restaurants that were open >10mins																								
+CREATE OR REPLACE TEMP TABLE tmp_active AS																								
+SELECT DATE_TRUNC(week,DATE_KEY) as date_key																								
+, restaurant_id as restaurant_id_active																								
+,  IFF(OPEN_MINS_TRIMMED>10,1,0) as is_active																								
+FROM PRODUCTION.AGGREGATE.RESTAURANT_OPS_METRICS_HOURLY																								
+WHERE TRUE																								
+AND RESTAURANT_COUNTRY_NAME = 'France'																								
+AND RESTAURANT_ADMIN_STATUS <> 'DISABLED'																								
+AND (DATEDIFF(week,date_key,CURRENT_DATE) > 0 AND DATE_TRUNC(week,date_key) > '2021-10-01')																								
+																								
+GROUP BY 1,2,3;																								
+																								
+																								
+-- ZONE LEVEL METRICS																								
+																								
+---- OPEN																								
+CREATE OR REPLACE TEMP TABLE tmp_tracker_open AS																								
+SELECT DATE_TRUNC(week,h.DATE_KEY) as date_key																								
+, RESTAURANT_ZONE_CODE as zone_code																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10,h.RESTAURANT_ID,NULL)) cnt_open																								
+,COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED'),h.RESTAURANT_ID,NULL)) as cnt_live																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND rs.RESTAURANT_SEGMENT IN ('1. G7','2. Market Champion') ,h.RESTAURANT_ID,NULL)) cnt_open_G25																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND SF_GLOBAL_BRAND IN ('KFC','Burger King','McDonald\'s') ,h.RESTAURANT_ID,NULL)) cnt_open_G3																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND rs.RESTAURANT_SEGMENT LIKE '%Enterprise%%' ,h.RESTAURANT_ID,NULL)) cnt_open_Enterprise																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND rs.RESTAURANT_SEGMENT = '5. Local Gold' ,h.RESTAURANT_ID,NULL)) cnt_open_LG																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND rs.RESTAURANT_SEGMENT = '6. Local Silver' ,h.RESTAURANT_ID,NULL)) cnt_open_LS																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND rs.RESTAURANT_SEGMENT = '7. Local Bronze' ,h.RESTAURANT_ID,NULL)) cnt_open_LB																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND rs.RESTAURANT_SEGMENT = '8. Newly Activated' ,h.RESTAURANT_ID,NULL)) cnt_open_New																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND rs.RESTAURANT_SEGMENT = '0. ODC' ,h.RESTAURANT_ID,NULL)) cnt_open_convenience																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND rs.RESTAURANT_SEGMENT IS NULL ,h.RESTAURANT_ID,NULL)) cnt_open_noseg																								
+, COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED') AND rs.RESTAURANT_SEGMENT IN ('1. G7','2. Market Champion') ,h.RESTAURANT_ID,NULL)) as cnt_live_G25																								
+, COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED') AND SF_GLOBAL_BRAND IN ('KFC','Burger King','McDonald\'s') ,h.RESTAURANT_ID,NULL)) as cnt_live_G3																								
+, COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED') AND rs.RESTAURANT_SEGMENT LIKE '%Enterprise%%' ,h.RESTAURANT_ID,NULL)) as cnt_live_Enterprise																								
+, COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED') AND rs.RESTAURANT_SEGMENT = '5. Local Gold' ,h.RESTAURANT_ID,NULL)) as cnt_live_LG																								
+, COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED') AND rs.RESTAURANT_SEGMENT = '6. Local Silver' ,h.RESTAURANT_ID,NULL)) as cnt_live_LS																								
+, COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED') AND rs.RESTAURANT_SEGMENT = '7. Local Bronze' ,h.RESTAURANT_ID,NULL)) as cnt_live_LB																								
+, COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED') AND rs.RESTAURANT_SEGMENT = '8. Newly Activated' ,h.RESTAURANT_ID,NULL)) as cnt_live_New																								
+, COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED') AND rs.RESTAURANT_SEGMENT = '0. ODC' ,h.RESTAURANT_ID,NULL)) as cnt_live_convenience																								
+, COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED') AND rs.RESTAURANT_SEGMENT IS NULL,h.RESTAURANT_ID,NULL)) as cnt_live_noseg																								
+, SUM(SESSIONS_WITH_AN_ORDER)/NULLIF(SUM(CLICK_THROUGHS),0) as menu_cvr																								
+,SUM(OPEN_MINS_TRIMMED) / NULLIF(SUM(SCHEDULED_OPEN_MINS_TRIMMED),0)  AS open_pct																								
+,SUM(IFF(is_active = 1,OPEN_MINS_TRIMMED,NULL))/NULLIF(SUM(IFF(is_active = 1,SCHEDULED_OPEN_MINS_TRIMMED,NULL)),0) as open_pct_active_rx																								
+, SUM(IFF(LOCAL_TIME_FIVE_SHIFTS='Lunch',CNT_ORDERS_DELIVERED_CORE+CNT_ORDERS_DELIVERED_M_PLUS+CNT_ORDERS_DELIVERED_CLICK_AND_COLLECT,0))																								
+/NULLIF(SUM(CNT_ORDERS_DELIVERED_M_PLUS+CNT_ORDERS_DELIVERED_CLICK_AND_COLLECT+CNT_ORDERS_DELIVERED_CORE),0) as pct_lunch_orders																								
+, COUNT(DISTINCT IFF(FIRST_ACTIVATION_DATE <'2020-03-16' AND OPEN_MINS_TRIMMED>10,h.restaurant_id,NULL))																								
+/NULLIF(COUNT(DISTINCT IFF(FIRST_ACTIVATION_DATE < '2020-03-16' AND RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED'),h.restaurant_id,NULL)),0) as pct_open_rx_pC																								
+, SUM(IFF(RESTAURANT_SUPPLIER_TYPE_CBS = 'ODC',CNT_ORDERS_DELIVERED_M_PLUS+CNT_ORDERS_DELIVERED_CLICK_AND_COLLECT+CNT_ORDERS_DELIVERED_CORE,0))																								
+/NULLIF(SUM(CNT_ORDERS_DELIVERED_M_PLUS+CNT_ORDERS_DELIVERED_CLICK_AND_COLLECT+CNT_ORDERS_DELIVERED_CORE),0) as pct_convenience																								
+--, SUM(CNT_ORDERS_DELIVERED_DISCOUNTED)/NULLIF(SUM(CNT_ORDERS_DELIVERED_M_PLUS+CNT_ORDERS_DELIVERED_CLICK_AND_COLLECT+CNT_ORDERS_DELIVERED_CORE),0) as pct_marketer																								
+, SUM(IFF(SF_VIRTUAL_BRAND,CNT_ORDERS_DELIVERED_M_PLUS+CNT_ORDERS_DELIVERED_CLICK_AND_COLLECT+CNT_ORDERS_DELIVERED_CORE,0))																								
+/NULLIF(SUM(CNT_ORDERS_DELIVERED_M_PLUS+CNT_ORDERS_DELIVERED_CLICK_AND_COLLECT+CNT_ORDERS_DELIVERED_CORE),0) as pct_vb																								
+, SUM(CNT_ORDERS_DELIVERED_CLICK_AND_COLLECT)/NULLIF(SUM(CNT_ORDERS_DELIVERED_M_PLUS+CNT_ORDERS_DELIVERED_CLICK_AND_COLLECT+CNT_ORDERS_DELIVERED_CORE),0) as pct_c_c																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND SF_VIRTUAL_BRAND,h.RESTAURANT_ID,NULL)) cnt_open_vb																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND IS_CONVENIENCE_GROCERIES_TAGGED,h.RESTAURANT_ID,NULL)) cnt_open_odc																								
+FROM PRODUCTION.AGGREGATE.RESTAURANT_OPS_METRICS_HOURLY h																								
+LEFT JOIN production.reference.restaurant_segmentation  AS rs																								
+ON h.RESTAURANT_ID = rs.restaurant_id																								
+AND rs.date_quarter = DATE_TRUNC(quarter,current_date)																								
+LEFT JOIN tmp_active a																								
+ON a.restaurant_id_active = h.restaurant_id																								
+AND a.date_key = h.date_key																								
+WHERE TRUE																								
+AND RESTAURANT_COUNTRY_NAME = 'France'																								
+AND RESTAURANT_ADMIN_STATUS <> 'DISABLED'																								
+AND (DATEDIFF(week,h.date_key,CURRENT_DATE) > 0 AND DATE_TRUNC(week,h.date_key) > '2021-10-01')																								
+																								
+GROUP BY 1,2																								
+ORDER By 2,1;																								
+																								
+																								
+-- OPS_																								
+CREATE OR REPLACE TEMP TABLE tmp_tracker_ops AS																								
+SELECT DATE_TRUNC(week,START_OF_PERIOD_LOCAL::DATE) as date_key																								
+, ZONE_CODE																								
+,COALESCE( NULLIF((COALESCE(SUM(sum_asap_restaurants), 0)),0) / NULLIF((COALESCE(SUM(cnt_sessions), 0)),0) ,0) AS avg_asap_rx																								
+,(COALESCE(SUM(distance_restaurant_customer_sum ), 0)) / NULLIF((COALESCE(SUM(distance_restaurant_customer_cnt ), 0)), 0) AS avg_distance_r_to_c																								
+,(COALESCE(SUM(eod_mins_sum ), 0)) / NULLIF((COALESCE(SUM(eod_mins_cnt ), 0)), 0) AS avg_eod																								
+, SUM(AGG_ZONE_DELIVERY_METRICS_HOURLY.WAIT_TIME_PAST_TARGET_TIME_MINS_SUM)/sum(AGG_ZONE_DELIVERY_METRICS_HOURLY.WAIT_TIME_PAST_TARGET_TIME_CNT) as WAR_pt																								
+, SUM(SUM_RSR_NOT_VISIBLE)/NULLIF((SUM(SUM_ASAP_RESTAURANTS)+SUM(SUM_RSR_NOT_VISIBLE)),0) as pct_RSR																								
+, SUM(IFF(dayname(START_OF_PERIOD_LOCAL) IN ('Fri'),SUM_RSR_NOT_VISIBLE,0))/nullif((sum(IFF(dayname(START_OF_PERIOD_LOCAL) IN ('Fri'),SUM_ASAP_RESTAURANTS + SUM_RSR_NOT_VISIBLE,0))),0) as pct_rsr_fri																								
+, SUM(IFF(dayname(START_OF_PERIOD_LOCAL) IN ('Sun'),SUM_RSR_NOT_VISIBLE,0))/nullif((sum(IFF(dayname(START_OF_PERIOD_LOCAL) IN ('Sun'),SUM_ASAP_RESTAURANTS + SUM_RSR_NOT_VISIBLE,0))),0) as pct_rsr_sun																								
+,SUM(RAIN_ORDERS_CNT)/NULLIF(SUM(ORDERS_DELIVERED),0) as pct_rain																								
+FROM production.AGGREGATE.AGG_ZONE_DELIVERY_METRICS_HOURLY																								
+WHERE TRUE																								
+AND COUNTRY_NAME = 'France'																								
+AND (DATEDIFF(week,start_of_period_local,CURRENT_DATE) > 0 AND DATE_TRUNC(week,start_of_period_local) > '2021-10-01')																								
+																								
+GROUP BY 1,2;																								
+																								
+-- MGMT																								
+CREATE OR REPLACE TEMP TABLE tmp_tracker_mgmt AS																								
+SELECT DATE_TRUNC(week,period_date) AS date_key																								
+, ZONE_CODE																								
+,(COALESCE(SUM(CASE WHEN COUNTRY_NAME LIKE '%' THEN   sum_operational_profit * exchange_rate ELSE NULL END ), 0))/nullif((sum(IFF(COUNTRY_NAME LIKE '%', ORDERS,0))),0)  AS OPPO																								
+,(COALESCE(SUM(CASE WHEN COUNTRY_NAME LIKE '%' THEN  sum_total_net_revenue * exchange_rate ELSE NULL END ), 0))/nullif((sum(IFF(COUNTRY_NAME LIKE '%', ORDERS,0))),0) AS NPO																								
+,(COALESCE(SUM(CASE WHEN COUNTRY_NAME LIKE '%' THEN   SUM_TOTAL_RIDER_COST * exchange_rate * exchange_rate ELSE NULL END ), 0))/nullif((sum(IFF(COUNTRY_NAME LIKE '%', ORDERS,0))),0) AS CPO																								
+,(COALESCE(SUM(converted_sessions ), 0))/nullif((COALESCE(SUM(sessions_platform_sessions), 0)),0) AS cvr																								
+,(COALESCE(SUM(sessions_platform_sessions), 0)) AS sessions																								
+--,(NULLIF(sum(cnt_b10_incidence),0))/NULLIF((NULLIF(sum(cnt_b10_denominator),0)),0) AS pct_B10_incidence																								
+--,sum(CNT_B10_UNACCEPTABLE_LATE)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_ul																								
+-- ,sum(CNT_B10_UNACCEPTABLE_LATE_5_TO_15)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_ul_late_5																								
+--,sum(CNT_B10_UNACCEPTABLE_LATE_15_PLUS)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_ul_late_15																								
+--,sum(CNT_B10_MISSING_ITEM)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_mi																								
+-- ,sum(CNT_B10_REJECTION)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_rej																								
+-- ,sum(CNT_B10_OMDNR)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_OMDNR																								
+-- ,sum(CNT_B10_CANCELLATION)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_can																								
+--,SUM(NC_SESSIONS) as sum_nc_sessions																								
+--,SUM(EC_SESSIONS) as sum_ec_sessions																								
+--, sum(NC_CONVERTED_SESSIONS)/NULLIF(sum_nc_sessions,0) as nc_cvr																								
+--, sum(EC_CONVERTED_SESSIONS)/NULLIF(sum_ec_sessions,0) as ec_cvr																								
+, SUM(orders) as orders_delivered																								
+,SUM(SUM_ORDER_VALUE)/orders_delivered as AOV																								
+,SUM (SUM_NET_COMMISSION_REVENUE)/orders_delivered as comm																								
+,comm/AOV as comm_pct																								
+,SUM(SUM_NET_DELIVERY_FEE)/orders_delivered as avg_delivery_fee_revenue																								
+,SUM(SUM_TOTAL_REFUND_INC_RPA)/orders_delivered as avg_refund																								
+,SUM(plus_active_subscribers) as plus_subscribers																								
+, SUM (plus_new_subscribers) as new_plus_subscribers																								
+FROM production.AGGREGATE.zone_day_mgmt_report																								
+WHERE TRUE																								
+AND COUNTRY_NAME = 'France'																								
+AND zone_code <> 'Unknown'																								
+AND (DATEDIFF(week,period_date,CURRENT_DATE) > 0 AND DATE_TRUNC(week,period_date) > '2021-10-01')																								
+																								
+GROUP BY 1,2;																								
+																								
+-- PMF																								
+CREATE OR REPLACE TEMP TABLE tmp_tracker_pmf AS																								
+SELECT DATE_TRUNC(week,DATE_HOUR_LOCAL::DATE) as date_key																								
+, ZONE_CODE																								
+, SUM(IFF (SOURCE='DELIVEROO',RX_COUNT * DELIVEROO_TRAFFIC,NULL)) / SUM(IFF(SOURCE='DELIVEROO',DELIVEROO_TRAFFIC,NULL)) as pfm_roo_rx_seen																								
+, SUM(IFF (SOURCE='UBER',RX_COUNT * DELIVEROO_TRAFFIC,NULL)) / SUM(IFF(SOURCE='UBER',DELIVEROO_TRAFFIC,NULL)) as pmf_ue_rx_seen																								
+, AVG(CUISINE_DIVERSITY_PMF_SCORE) as cuisine_div																								
+FROM production.COMPETITOR.PRODUCT_MARKET_FIT_HOURLY PMFH																								
+WHERE TRUE																								
+AND COUNTRY_NAME = 'France'																								
+AND (DATEDIFF(week,date_hour_local,CURRENT_DATE) > 0 AND DATE_TRUNC(week,date_hour_local) > '2021-10-01')																								
+																								
+GROUP BY 1,2																								
+ORDER BY 2,1;																								
+																								
+-- RETURNED Rx																								
+CREATE OR REPLACE TEMP TABLE tmp_tracker_returned AS																								
+SELECT DATE_TRUNC(week,DATE_o) as date_key																								
+, RESTAURANT_ZONE_CODE																								
+, SUM(is_returned) as returned_rx																								
+, SUM(IFF(is_returned=1 AND rs.RESTAURANT_SEGMENT IN ('1. G7','2. Market Champion'),1,0)) as returned_G25																								
+, SUM(IFF(is_returned=1 AND rs.RESTAURANT_SEGMENT LIKE '%Enterprise%%',1,0)) as returned_Enterprise																								
+, SUM(IFF(is_returned=1 AND rs.RESTAURANT_SEGMENT = '5. Local Gold',1,0)) as returned_LG																								
+, SUM(IFF(is_returned=1 AND rs.RESTAURANT_SEGMENT = '6. Local Silver',1,0)) as returned_LS																								
+, SUM(IFF(is_returned=1 AND rs.RESTAURANT_SEGMENT = '7. Local Bronze',1,0)) as returned_LB																								
+, SUM(IFF(is_returned=1 AND rs.RESTAURANT_SEGMENT = '8. Newly Activated',1,0)) as returned_New																								
+, SUM(IFF(is_returned=1 AND rs.RESTAURANT_SEGMENT = '0. ODC',1,0)) as returned_convenience																								
+FROM tmp_returned tr																								
+LEFT JOIN production.reference.restaurant_segmentation  AS rs																								
+ON tr.rx_id = rs.restaurant_id																								
+AND rs.date_quarter = DATE_TRUNC(quarter,current_date)																								
+WHERE TRUE																								
+GROUP BY 1,2																								
+ORDER BY 1;																								
+																								
+--- Good Session Data																								
+CREATE OR REPLACE TEMP TABLE tmp_sessions_new AS																								
+SELECT DATE_TRUNC(week,date_key) as date_key																								
+, zone_code																								
+, COUNT(*) as sessions																								
+, SUM(IFF(is_converted_session,1,0))/NULLIF(sessions,0) as cvr																								
+, SUM(IFF(new_customer,1,0)) as nc_sessions																								
+, SUM(IFF(new_customer,0,1)) as ec_sessions																								
+, SUM(IFF(new_customer AND is_converted_session,1,0))/NULLIF(nc_sessions,0) as nc_cvr																								
+, SUM(IFF(NOT new_customer AND is_converted_session,1,0))/NULLIF(ec_sessions,0) as ec_cvr																								
+FROM PRODUCTION.SESSIONS.CONSUMER_SESSIONS_combined																								
+WHERE TRUE																								
+ANd country = 'France'																								
+AND zone_code NOT IN ('Unknown','')																								
+AND (DATEDIFF(week,date_key,CURRENT_DATE) > 0 AND DATE_TRUNC(week,date_key) > '2021-10-01')																								
+																								
+GROUP BY 1,2;																								
+																								
+-- other																								
+CREATE OR REPLACE TEMP TABLE tmp_other AS																								
+SELECT DATE_TRUNC(week,order_date) as date_key																								
+, zone_code																								
+, SUM(IFF(PAYMENT_CARD_TYPE IN ('SWILE','SODEXO','EDENRED' ,'UP','APETIZ'),1,0))/COUNT(*) as pct_TR																								
+, SUM(IFF(dayname(order_date) IN ('Mon','Tue','Wed','Thu'),1,0))/COUNT(*) as pct_week																								
+, SUM(IFF(dayname(order_date) IN ('Fri','Sat','Sun'),1,0))/COUNT(*) as pct_weekend																								
+, SUM(IFF(sf_global_brand IN ('McDonald\'s','Burger King','KFC'),1,0))/COUNT(*) as pct_g3																								
+, SUM(IFF(DELIVEROO_PLUS_ORDER IN ('TRUE'),1,0))/COUNT(*) as PLUS																								
+, SUM(IFF(order_rank_user = '1',1,0))/COUNT(*) as New_customers																								
+, SUM(IFF(ORDER_RANK_USER='1',1,0)) as NC																								
+,COUNT (distinct o.user_id) as distinct_cx																								
+,COUNT (distinct restaurant_id) as distinct_RX																								
+,SUM(IFF(WAIT_TIME_PAST_TARGET > 5 ,1,0))/COUNT(*) as fivemins_pt																								
+,AVG (Delivery_fee) as DF_PO																								
+,SUM(IFF(promotion_type = 'NUX_Free_Delivery',1,0))/COUNT(*) as NUX																								
+,SUM(IFF(o.reason IS NOT NULL AND o.reason NOT IN ('refund', 'incorrect_food','goodwill','payment_issue','deliveroo_delay','driver_issue','redelivery','cold_food','packaging_issue','customer_disliked_food','restaurant_delay', 'fake_offer','voucher','crm_campaign','referrer'),1,0))/COUNT(*) as other_voucher																								
+,SUM(IFF(o.marketing_debit_type IN ('voucher','marketing_action_link'),1,0))/COUNT(*)  as main_voucher																								
+,SUM(IFF(PAYMENT_CARD_TYPE IN ('SWILE','SODEXO','EDENRED', 'UP','APETIZ'),1,0))/COUNT(*) as total_tr																								
+,SUM(IFF(promotion_type IN('Free_Delivery_Marketplace','Free_Delivery_Core'),1,0))/COUNT(*) as fd																								
+,SUM(IFF(IS_MARKETER_ORDER,1,0))/COUNT(*) as pct_marketer																								
+,SUM(IFF(IS_B10_AMENDED_ORDER,1,0))/COUNT(*) as pct_b10_amended																								
+,SUM(IFF(IS_B10_SPOILED_FOOD,1,0))/COUNT(*) as pct_b10_spoiled																								
+FROM production.denormalised.orders o																								
+LEFT JOIN production.MISCELLANEOUS.promotions p																								
+ON o.id = p.order_id																								
+WHERE TRUE																								
+AND COUNTRY_NAME = 'France'																								
+AND (DATEDIFF(week,order_date,CURRENT_DATE) > 0 AND DATE_TRUNC(week,order_date) > '2021-10-01')																								
+																								
+AND status = 'DELIVERED'																								
+GROUP BY 1,2;																								
+																								
+-- sign ups																								
+CREATE OR REPLACE TEMP TABLE tmp_sign AS																								
+SELECT DATE_TRUNC(week,FIRST_CONTRACT_EFFECTIVE_DATE) as date_key																								
+,restaurant_zone_code																								
+																								
+,COUNT(DISTINCT IFF(sf_global_brand ='KFC',restaurant_id,NULL)) as KFC_launched																								
+,COUNT(DISTINCT IFF(sf_global_brand ='Burger King',restaurant_id,NULL)) as BK_launched																								
+,COUNT(DISTINCT IFF(sf_global_brand ='McDonald\'s',restaurant_id,NULL)) as McDo_launched																								
+FROM PRODUCTION.REFERENCE.DENORMALISED_RESTAURANT_WITH_COMPANY  AS denormalised_restaurant_with_company																								
+WHERE ((((denormalised_restaurant_with_company.first_contract_effective_date ) >= ((DATEADD('day', -28, DATE_TRUNC('week', DATE_TRUNC('day', CONVERT_TIMEZONE('UTC', 'Europe/Paris', CAST(CURRENT_TIMESTAMP() AS TIMESTAMP_NTZ))))))) AND (denormalised_restaurant_with_company.first_contract_effective_date ) < ((DATEADD('day', 28, DATEADD('day', -28, DATE_TRUNC('week', DATE_TRUNC('day', CONVERT_TIMEZONE('UTC', 'Europe/Paris', CAST(CURRENT_TIMESTAMP() AS TIMESTAMP_NTZ))))))))))) AND ((UPPER(denormalised_restaurant_with_company.restaurant_country_name ) = UPPER('France'))) AND ((UPPER(Case when denormalised_restaurant_with_company.status in ('CLOSED', 'OPEN', 'READY_TO_OPEN') then 'LIVE'																								
+When denormalised_restaurant_with_company.status in ('DISABLED') then 'DISABLED'																								
+Else 'UNKNOWN' END ) = UPPER('LIVE'))) AND ((UPPER(denormalised_restaurant_with_company.restaurant_country_name ) LIKE UPPER('%')))																								
+GROUP BY 1,2																								
+ORDER BY 2 DESC;																								
+																								
+-- CROSS-ZONE BY CX ZONE																								
+CREATE OR REPLACE TEMP TABLE tmp_cx_cross_zone AS																								
+select DATE_TRUNC(week,order_date) as date_key																								
+, CUSTOMER_ZONE_CODE																								
+, SUM(IFF(cross_zone_delivery ='TRUE',1,0)) as cx_cross_zone_ov																								
+, SUM(IFF(cross_zone_delivery ='FALSE',1,0)) as cx_in_zone_ov																								
+FROM production.denormalised.orders																								
+WHERE TRUE																								
+AND COUNTRY_NAME = 'France'																								
+AND (DATEDIFF(week,order_date,CURRENT_DATE) > 0 AND DATE_TRUNC(week,order_date) > '2021-10-01')																								
+																								
+AND status = 'DELIVERED'																								
+GROUP BY 1,2																								
+ORDER BY 2;																								
+																								
+-- CROSS-ZONE BY RX ZONE																								
+CREATE OR REPLACE TEMP TABLE tmp_rx_cross_zone AS																								
+select DATE_TRUNC(week,order_date) as date_key																								
+, RESTAURANT_ZONE_CODE																								
+, SUM(IFF(cross_zone_delivery ='TRUE',1,0)) as rx_cross_zone_ov																								
+, SUM(IFF(cross_zone_delivery ='FALSE',1,0)) as rx_in_zone_ov																								
+FROM production.denormalised.orders																								
+WHERE TRUE																								
+AND COUNTRY_NAME = 'France'																								
+AND (DATEDIFF(week,order_date,CURRENT_DATE) > 0 AND DATE_TRUNC(week,order_date) > '2021-10-01')																								
+																								
+AND status = 'DELIVERED'																								
+GROUP BY 1,2																								
+ORDER BY 2																								
+;																								
+																								
+																								
+----MGNT V2																								
+CREATE OR REPLACE TEMP TABLE tmp_tracker_mgmt_v2 AS																								
+SELECT DATE_TRUNC(week,date_value_day) AS date_key																								
+, ZONE_CODE																								
+,(NULLIF(sum(cnt_b10_incidence),0))/NULLIF((NULLIF(sum(cnt_b10_denominator),0)),0) AS pct_B10_incidence																								
+,sum(CNT_B10_UNACCEPTABLE_LATE)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_ul																								
+,sum(CNT_B10_UNACCEPTABLE_LATE_5_TO_15)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_ul_late_5																								
+,sum(CNT_B10_UNACCEPTABLE_LATE_15_PLUS)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_ul_late_15																								
+,sum(CNT_B10_MISSING_ITEM)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_mi																								
+,sum(CNT_B10_REJECTION)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_rej																								
+,sum(CNT_B10_OMDNR)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_OMDNR																								
+,sum(CNT_B10_CANCELLATION)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_can																								
+																								
+FROM production.aggregate.mgmt_report_zone_day_metrics																								
+WHERE TRUE																								
+AND COUNTRY_NAME = 'France'																								
+AND zone_code <> 'Unknown'																								
+AND (DATEDIFF(week,date_value_day,CURRENT_DATE) > 0 AND DATE_TRUNC(week,date_value_day) > '2021-10-01')																								
+																								
+GROUP BY 1,2;																								
+																								
+																								
+-- Hub REGIONAL FRANCE - EXPANSION																								
+																								
+---- OPEN																								
+CREATE OR REPLACE TEMP TABLE tmp_tracker_open_ex AS																								
+SELECT DATE_TRUNC(week,h.DATE_KEY) as date_key																								
+, 'Regional France - Expansion' as zone_code																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10,h.RESTAURANT_ID,NULL)) cnt_open																								
+,COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED'),h.RESTAURANT_ID,NULL)) as cnt_live																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND rs.RESTAURANT_SEGMENT IN ('1. G7','2. Market Champion') ,h.RESTAURANT_ID,NULL)) cnt_open_G25																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND SF_GLOBAL_BRAND IN ('KFC','Burger King','McDonald\'s') ,h.RESTAURANT_ID,NULL)) cnt_open_G3																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND rs.RESTAURANT_SEGMENT LIKE '%Enterprise%%' ,h.RESTAURANT_ID,NULL)) cnt_open_Enterprise																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND rs.RESTAURANT_SEGMENT = '5. Local Gold' ,h.RESTAURANT_ID,NULL)) cnt_open_LG																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND rs.RESTAURANT_SEGMENT = '6. Local Silver' ,h.RESTAURANT_ID,NULL)) cnt_open_LS																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND rs.RESTAURANT_SEGMENT = '7. Local Bronze' ,h.RESTAURANT_ID,NULL)) cnt_open_LB																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND rs.RESTAURANT_SEGMENT = '8. Newly Activated' ,h.RESTAURANT_ID,NULL)) cnt_open_New																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND rs.RESTAURANT_SEGMENT = '0. ODC' ,h.RESTAURANT_ID,NULL)) cnt_open_convenience																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND rs.RESTAURANT_SEGMENT IS NULL ,h.RESTAURANT_ID,NULL)) cnt_open_noseg																								
+, COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED') AND rs.RESTAURANT_SEGMENT IN ('1. G7','2. Market Champion') ,h.RESTAURANT_ID,NULL)) as cnt_live_G25																								
+, COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED') AND SF_GLOBAL_BRAND IN ('KFC','Burger King','McDonald\'s') ,h.RESTAURANT_ID,NULL)) as cnt_live_G3																								
+, COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED') AND rs.RESTAURANT_SEGMENT LIKE '%Enterprise%%' ,h.RESTAURANT_ID,NULL)) as cnt_live_Enterprise																								
+, COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED') AND rs.RESTAURANT_SEGMENT = '5. Local Gold' ,h.RESTAURANT_ID,NULL)) as cnt_live_LG																								
+, COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED') AND rs.RESTAURANT_SEGMENT = '6. Local Silver' ,h.RESTAURANT_ID,NULL)) as cnt_live_LS																								
+, COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED') AND rs.RESTAURANT_SEGMENT = '7. Local Bronze' ,h.RESTAURANT_ID,NULL)) as cnt_live_LB																								
+, COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED') AND rs.RESTAURANT_SEGMENT = '8. Newly Activated' ,h.RESTAURANT_ID,NULL)) as cnt_live_New																								
+, COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED') AND rs.RESTAURANT_SEGMENT = '0. ODC' ,h.RESTAURANT_ID,NULL)) as cnt_live_convenience																								
+, COUNT(DISTINCT IFF(RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED') AND rs.RESTAURANT_SEGMENT IS NULL,h.RESTAURANT_ID,NULL)) as cnt_live_noseg																								
+, SUM(SESSIONS_WITH_AN_ORDER)/NULLIF(SUM(CLICK_THROUGHS),0) as menu_cvr																								
+,SUM(OPEN_MINS_TRIMMED) / NULLIF(SUM(SCHEDULED_OPEN_MINS_TRIMMED),0)  AS open_pct																								
+,SUM(IFF(is_active = 1,OPEN_MINS_TRIMMED,NULL))/NULLIF(SUM(IFF(is_active = 1,SCHEDULED_OPEN_MINS_TRIMMED,NULL)),0) as open_pct_active_rx																								
+, SUM(IFF(LOCAL_TIME_FIVE_SHIFTS='Lunch',CNT_ORDERS_DELIVERED_CORE+CNT_ORDERS_DELIVERED_M_PLUS+CNT_ORDERS_DELIVERED_CLICK_AND_COLLECT,0))																								
+/NULLIF(SUM(CNT_ORDERS_DELIVERED_M_PLUS+CNT_ORDERS_DELIVERED_CLICK_AND_COLLECT+CNT_ORDERS_DELIVERED_CORE),0) as pct_lunch_orders																								
+, COUNT(DISTINCT IFF(FIRST_ACTIVATION_DATE <'2020-03-16' AND OPEN_MINS_TRIMMED>10,h.restaurant_id,NULL))																								
+/NULLIF(COUNT(DISTINCT IFF(FIRST_ACTIVATION_DATE < '2020-03-16' AND RESTAURANT_ADMIN_STATUS NOT IN ('DISABLED','DELETED'),h.restaurant_id,NULL)),0) as pct_open_rx_pC																								
+, SUM(IFF(RESTAURANT_SUPPLIER_TYPE_CBS = 'ODC',CNT_ORDERS_DELIVERED_M_PLUS+CNT_ORDERS_DELIVERED_CLICK_AND_COLLECT+CNT_ORDERS_DELIVERED_CORE,0))																								
+/NULLIF(SUM(CNT_ORDERS_DELIVERED_M_PLUS+CNT_ORDERS_DELIVERED_CLICK_AND_COLLECT+CNT_ORDERS_DELIVERED_CORE),0) as pct_convenience																								
+--, SUM(CNT_ORDERS_DELIVERED_DISCOUNTED)/NULLIF(SUM(CNT_ORDERS_DELIVERED_M_PLUS+CNT_ORDERS_DELIVERED_CLICK_AND_COLLECT+CNT_ORDERS_DELIVERED_CORE),0) as pct_marketer																								
+, SUM(IFF(SF_VIRTUAL_BRAND,CNT_ORDERS_DELIVERED_M_PLUS+CNT_ORDERS_DELIVERED_CLICK_AND_COLLECT+CNT_ORDERS_DELIVERED_CORE,0))																								
+/NULLIF(SUM(CNT_ORDERS_DELIVERED_M_PLUS+CNT_ORDERS_DELIVERED_CLICK_AND_COLLECT+CNT_ORDERS_DELIVERED_CORE),0) as pct_vb																								
+, SUM(CNT_ORDERS_DELIVERED_CLICK_AND_COLLECT)/NULLIF(SUM(CNT_ORDERS_DELIVERED_M_PLUS+CNT_ORDERS_DELIVERED_CLICK_AND_COLLECT+CNT_ORDERS_DELIVERED_CORE),0) as pct_c_c																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND SF_VIRTUAL_BRAND,h.RESTAURANT_ID,NULL)) cnt_open_vb																								
+,COUNT(DISTINCT IFF(OPEN_MINS_TRIMMED >10 AND IS_CONVENIENCE_GROCERIES_TAGGED,h.RESTAURANT_ID,NULL)) cnt_open_odc																								
+FROM PRODUCTION.AGGREGATE.RESTAURANT_OPS_METRICS_HOURLY h																								
+LEFT JOIN production.reference.restaurant_segmentation  AS rs																								
+ON h.RESTAURANT_ID = rs.restaurant_id																								
+AND rs.date_quarter = DATE_TRUNC(quarter,current_date)																								
+LEFT JOIN tmp_active a																								
+ON a.restaurant_id_active = h.restaurant_id																								
+AND a.date_key = h.date_key																								
+WHERE TRUE																								
+AND RESTAURANT_COUNTRY_NAME = 'France'																								
+AND RESTAURANT_ADMIN_STATUS <> 'DISABLED'																								
+AND (DATEDIFF(week,h.date_key,CURRENT_DATE) > 0 AND DATE_TRUNC(week,h.date_key) > '2021-10-01')																								
+																								
+AND RESTAURANT_ZONE_CODE IN (SELECT DISTINCT zone_code FROM production.reference.zone_city_country WHERE large_city_region = 'Regional France - Expansion')																								
+GROUP BY 1,2																								
+ORDER By 2,1;																								
+																								
+																								
+-- OPS_																								
+CREATE OR REPLACE TEMP TABLE tmp_tracker_ops_ex AS																								
+SELECT DATE_TRUNC(week,START_OF_PERIOD_LOCAL::DATE) as date_key																								
+, 'Regional France - Expansion' as ZONE_CODE																								
+,COALESCE( NULLIF((COALESCE(SUM(sum_asap_restaurants), 0)),0) / NULLIF((COALESCE(SUM(cnt_sessions), 0)),0) ,0) AS avg_asap_rx																								
+,(COALESCE(SUM(distance_restaurant_customer_sum ), 0)) / NULLIF((COALESCE(SUM(distance_restaurant_customer_cnt ), 0)), 0) AS avg_distance_r_to_c																								
+,(COALESCE(SUM(eod_mins_sum ), 0)) / NULLIF((COALESCE(SUM(eod_mins_cnt ), 0)), 0) AS avg_eod																								
+, SUM(AGG_ZONE_DELIVERY_METRICS_HOURLY.WAIT_TIME_PAST_TARGET_TIME_MINS_SUM)/sum(AGG_ZONE_DELIVERY_METRICS_HOURLY.WAIT_TIME_PAST_TARGET_TIME_CNT) as WAR_pt																								
+, SUM(SUM_RSR_NOT_VISIBLE)/NULLIF((SUM(SUM_ASAP_RESTAURANTS)+SUM(SUM_RSR_NOT_VISIBLE)),0) as pct_RSR																								
+, SUM(IFF(dayname(START_OF_PERIOD_LOCAL) IN ('Fri'),SUM_RSR_NOT_VISIBLE,0))/nullif((sum(IFF(dayname(START_OF_PERIOD_LOCAL) IN ('Fri'),SUM_ASAP_RESTAURANTS + SUM_RSR_NOT_VISIBLE,0))),0) as pct_rsr_fri																								
+, SUM(IFF(dayname(START_OF_PERIOD_LOCAL) IN ('Sun'),SUM_RSR_NOT_VISIBLE,0))/nullif((sum(IFF(dayname(START_OF_PERIOD_LOCAL) IN ('Sun'),SUM_ASAP_RESTAURANTS + SUM_RSR_NOT_VISIBLE,0))),0) as pct_rsr_sun																								
+,SUM(RAIN_ORDERS_CNT)/NULLIF(SUM(ORDERS_DELIVERED),0) as pct_rain																								
+FROM production.AGGREGATE.AGG_ZONE_DELIVERY_METRICS_HOURLY																								
+WHERE TRUE																								
+AND COUNTRY_NAME = 'France'																								
+AND (DATEDIFF(week,start_of_period_local,CURRENT_DATE) > 0 AND DATE_TRUNC(week,start_of_period_local) > '2021-10-01')																								
+																								
+AND zone_code IN (SELECT DISTINCT zone_code FROM production.reference.zone_city_country WHERE large_city_region = 'Regional France - Expansion')																								
+																								
+GROUP BY 1,2;																								
+																								
+-- MGMT																								
+CREATE OR REPLACE TEMP TABLE tmp_tracker_mgmt_ex AS																								
+SELECT DATE_TRUNC(week,period_date) AS date_key																								
+, 'Regional France - Expansion' as ZONE_CODE																								
+,(COALESCE(SUM(CASE WHEN COUNTRY_NAME LIKE '%' THEN   sum_operational_profit * exchange_rate ELSE NULL END ), 0))/nullif((sum(IFF(COUNTRY_NAME LIKE '%', ORDERS,0))),0)  AS OPPO																								
+,(COALESCE(SUM(CASE WHEN COUNTRY_NAME LIKE '%' THEN  sum_total_net_revenue * exchange_rate ELSE NULL END ), 0))/nullif((sum(IFF(COUNTRY_NAME LIKE '%', ORDERS,0))),0) AS NPO																								
+,(COALESCE(SUM(CASE WHEN COUNTRY_NAME LIKE '%' THEN   SUM_TOTAL_RIDER_COST * exchange_rate * exchange_rate ELSE NULL END ), 0))/nullif((sum(IFF(COUNTRY_NAME LIKE '%', ORDERS,0))),0) AS CPO																								
+,(COALESCE(SUM(converted_sessions ), 0))/nullif((COALESCE(SUM(sessions_platform_sessions), 0)),0) AS cvr																								
+,(COALESCE(SUM(sessions_platform_sessions), 0)) AS sessions																								
+--,(NULLIF(sum(cnt_b10_incidence),0))/NULLIF((NULLIF(sum(cnt_b10_denominator),0)),0) AS pct_B10_incidence																								
+--,sum(CNT_B10_UNACCEPTABLE_LATE)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_ul																								
+--,sum(CNT_B10_UNACCEPTABLE_LATE_5_TO_15)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_ul_late_5																								
+--,sum(CNT_B10_UNACCEPTABLE_LATE_15_PLUS)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_ul_late_15																								
+--,sum(CNT_B10_MISSING_ITEM)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_mi																								
+--,sum(CNT_B10_REJECTION)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_rej																								
+--,sum(CNT_B10_OMDNR)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_OMDNR																								
+--,sum(CNT_B10_CANCELLATION)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_can																								
+--,SUM(NC_SESSIONS) as sum_nc_sessions																								
+--,SUM(EC_SESSIONS) as sum_ec_sessions																								
+--, sum(NC_CONVERTED_SESSIONS)/NULLIF(sum_nc_sessions,0) as nc_cvr																								
+--, sum(EC_CONVERTED_SESSIONS)/NULLIF(sum_ec_sessions,0) as ec_cvr																								
+, SUM(orders) as orders_delivered																								
+,SUM(SUM_ORDER_VALUE)/orders_delivered as AOV																								
+,SUM (SUM_NET_COMMISSION_REVENUE)/orders_delivered as comm																								
+,comm/AOV as comm_pct																								
+,SUM(SUM_NET_DELIVERY_FEE)/orders_delivered as avg_delivery_fee_revenue																								
+,SUM(SUM_TOTAL_REFUND_INC_RPA)/orders_delivered as avg_refund																								
+,SUM(plus_active_subscribers) as plus_subscribers																								
+, SUM (plus_new_subscribers) as new_plus_subscribers																								
+FROM production.AGGREGATE.zone_day_mgmt_report																								
+WHERE TRUE																								
+AND COUNTRY_NAME = 'France'																								
+AND zone_code <> 'Unknown'																								
+AND (DATEDIFF(week,period_date,CURRENT_DATE) > 0 AND DATE_TRUNC(week,period_date) > '2021-10-01')																								
+																								
+AND zone_code IN (SELECT DISTINCT zone_code FROM production.reference.zone_city_country WHERE large_city_region = 'Regional France - Expansion')																								
+																								
+GROUP BY 1,2;																								
+																								
+-- PMF																								
+CREATE OR REPLACE TEMP TABLE tmp_tracker_pmf_ex AS																								
+SELECT DATE_TRUNC(week,DATE_HOUR_LOCAL::DATE) as date_key																								
+, 'Regional France - Expansion' as ZONE_CODE																								
+, SUM(IFF (SOURCE='DELIVEROO',RX_COUNT * DELIVEROO_TRAFFIC,NULL)) / SUM(IFF(SOURCE='DELIVEROO',DELIVEROO_TRAFFIC,NULL)) as pfm_roo_rx_seen																								
+, SUM(IFF (SOURCE='UBER',RX_COUNT * DELIVEROO_TRAFFIC,NULL)) / SUM(IFF(SOURCE='UBER',DELIVEROO_TRAFFIC,NULL)) as pmf_ue_rx_seen																								
+, AVG(CUISINE_DIVERSITY_PMF_SCORE) as cuisine_div																								
+FROM production.COMPETITOR.PRODUCT_MARKET_FIT_HOURLY PMFH																								
+WHERE TRUE																								
+AND COUNTRY_NAME = 'France'																								
+AND (DATEDIFF(week,date_hour_local,CURRENT_DATE) > 0 AND DATE_TRUNC(week,date_hour_local) > '2021-10-01')																								
+																								
+AND zone_code IN (SELECT DISTINCT zone_code FROM production.reference.zone_city_country WHERE large_city_region = 'Regional France - Expansion')																								
+																								
+GROUP BY 1,2																								
+ORDER BY 2,1;																								
+																								
+-- RETURNED Rx																								
+CREATE OR REPLACE TEMP TABLE tmp_tracker_returned_ex AS																								
+SELECT DATE_TRUNC(week,DATE_o) as date_key																								
+, 'Regional France - Expansion' as RESTAURANT_ZONE_CODE																								
+, SUM(is_returned) as returned_rx																								
+, SUM(IFF(is_returned=1 AND rs.RESTAURANT_SEGMENT IN ('1. G7','2. Market Champion'),1,0)) as returned_G25																								
+, SUM(IFF(is_returned=1 AND rs.RESTAURANT_SEGMENT LIKE '%Enterprise%%',1,0)) as returned_Enterprise																								
+, SUM(IFF(is_returned=1 AND rs.RESTAURANT_SEGMENT = '5. Local Gold',1,0)) as returned_LG																								
+, SUM(IFF(is_returned=1 AND rs.RESTAURANT_SEGMENT = '6. Local Silver',1,0)) as returned_LS																								
+, SUM(IFF(is_returned=1 AND rs.RESTAURANT_SEGMENT = '7. Local Bronze',1,0)) as returned_LB																								
+, SUM(IFF(is_returned=1 AND rs.RESTAURANT_SEGMENT = '8. Newly Activated',1,0)) as returned_New																								
+, SUM(IFF(is_returned=1 AND rs.RESTAURANT_SEGMENT = '0. ODC',1,0)) as returned_convenience																								
+FROM tmp_returned tr																								
+LEFT JOIN production.reference.restaurant_segmentation  AS rs																								
+ON tr.rx_id = rs.restaurant_id																								
+AND rs.date_quarter = DATE_TRUNC(quarter,current_date)																								
+WHERE TRUE																								
+AND restaurant_zone_code IN (SELECT DISTINCT zone_code FROM production.reference.zone_city_country WHERE large_city_region = 'Regional France - Expansion')																								
+GROUP BY 1,2																								
+ORDER BY 1;																								
+																								
+--- Good Session Data																								
+CREATE OR REPLACE TEMP TABLE tmp_sessions_new_ex AS																								
+SELECT DATE_TRUNC(week,date_key) as date_key																								
+, 'Regional France - Expansion' as zone_code																								
+, COUNT(*) as sessions																								
+, SUM(IFF(is_converted_session,1,0))/NULLIF(sessions,0) as cvr																								
+, SUM(IFF(new_customer,1,0)) as nc_sessions																								
+, SUM(IFF(new_customer,0,1)) as ec_sessions																								
+, SUM(IFF(new_customer AND is_converted_session,1,0))/NULLIF(nc_sessions,0) as nc_cvr																								
+, SUM(IFF(NOT new_customer AND is_converted_session,1,0))/NULLIF(ec_sessions,0) as ec_cvr																								
+FROM PRODUCTION.SESSIONS.CONSUMER_SESSIONS_combined																								
+WHERE TRUE																								
+ANd country = 'France'																								
+AND zone_code NOT IN ('Unknown','')																								
+AND (DATEDIFF(week,date_key,CURRENT_DATE) > 0 AND DATE_TRUNC(week,date_key) > '2021-10-01')																								
+																								
+AND zone_code IN (SELECT DISTINCT zone_code FROM production.reference.zone_city_country WHERE large_city_region = 'Regional France - Expansion')																								
+GROUP BY 1,2;																								
+																								
+-- other																								
+CREATE OR REPLACE TEMP TABLE tmp_other_ex AS																								
+SELECT DATE_TRUNC(week,order_date) as date_key																								
+, 'Regional France - Expansion' as zone_code																								
+, SUM(IFF(PAYMENT_CARD_TYPE IN ('SWILE','SODEXO','EDENRED' ,'UP','APETIZ'),1,0))/COUNT(*) as pct_TR																								
+, SUM(IFF(dayname(order_date) IN ('Mon','Tue','Wed','Thu'),1,0))/COUNT(*) as pct_week																								
+, SUM(IFF(dayname(order_date) IN ('Fri','Sat','Sun'),1,0))/COUNT(*) as pct_weekend																								
+, SUM(IFF(sf_global_brand IN ('McDonald\'s','Burger King','KFC'),1,0))/COUNT(*) as pct_g3																								
+, SUM(IFF(DELIVEROO_PLUS_ORDER IN ('TRUE'),1,0))/COUNT(*) as PLUS																								
+, SUM(IFF(order_rank_user = '1',1,0))/COUNT(*) as New_customers																								
+, SUM(IFF(ORDER_RANK_USER='1',1,0)) as NC																								
+,COUNT (distinct o.user_id) as distinct_cx																								
+,COUNT (distinct restaurant_id) as distinct_RX																								
+,SUM(IFF(WAIT_TIME_PAST_TARGET > 5 ,1,0))/COUNT(*) as fivemins_pt																								
+,AVG (Delivery_fee) as DF_PO																								
+,SUM(IFF(promotion_type = 'NUX_Free_Delivery',1,0))/COUNT(*) as NUX																								
+,SUM(IFF(o.reason IS NOT NULL AND o.reason NOT IN ('refund', 'incorrect_food','goodwill','payment_issue','deliveroo_delay','driver_issue','redelivery','cold_food','packaging_issue','customer_disliked_food','restaurant_delay', 'fake_offer','voucher','crm_campaign','referrer'),1,0))/COUNT(*) as other_voucher																								
+,SUM(IFF(o.marketing_debit_type IN ('voucher','marketing_action_link'),1,0))/COUNT(*)  as main_voucher																								
+,SUM(IFF(PAYMENT_CARD_TYPE IN ('SWILE','SODEXO','EDENRED', 'UP','APETIZ'),1,0))/COUNT(*) as total_tr																								
+,SUM(IFF(promotion_type IN('Free_Delivery_Marketplace','Free_Delivery_Core'),1,0))/COUNT(*) as fd																								
+,SUM(IFF(IS_MARKETER_ORDER,1,0))/COUNT(*) as pct_marketer																								
+,SUM(IFF(IS_B10_AMENDED_ORDER,1,0))/COUNT(*) as pct_b10_amended																								
+,SUM(IFF(IS_B10_SPOILED_FOOD,1,0))/COUNT(*) as pct_b10_spoiled																								
+FROM production.denormalised.orders o																								
+LEFT JOIN production.MISCELLANEOUS.promotions p																								
+ON o.id = p.order_id																								
+WHERE TRUE																								
+AND COUNTRY_NAME = 'France'																								
+AND (DATEDIFF(week,order_date,CURRENT_DATE) > 0 AND DATE_TRUNC(week,order_date) > '2021-10-01')																								
+																								
+AND zone_code IN (SELECT DISTINCT zone_code FROM production.reference.zone_city_country WHERE large_city_region = 'Regional France - Expansion')																								
+AND status = 'DELIVERED'																								
+GROUP BY 1,2;																								
+																								
+-- sign ups																								
+CREATE OR REPLACE TEMP TABLE tmp_sign_ex AS																								
+SELECT DATE_TRUNC(week,FIRST_CONTRACT_EFFECTIVE_DATE) as date_key																								
+,'Regional France - Expansion' as restaurant_zone_code																								
+																								
+,COUNT(DISTINCT IFF(sf_global_brand ='KFC',restaurant_id,NULL)) as KFC_launched																								
+,COUNT(DISTINCT IFF(sf_global_brand ='Burger King',restaurant_id,NULL)) as BK_launched																								
+,COUNT(DISTINCT IFF(sf_global_brand ='McDonald\'s',restaurant_id,NULL)) as McDo_launched																								
+FROM PRODUCTION.REFERENCE.DENORMALISED_RESTAURANT_WITH_COMPANY  AS denormalised_restaurant_with_company																								
+WHERE ((((denormalised_restaurant_with_company.first_contract_effective_date ) >= ((DATEADD('day', -28, DATE_TRUNC('week', DATE_TRUNC('day', CONVERT_TIMEZONE('UTC', 'Europe/Paris', CAST(CURRENT_TIMESTAMP() AS TIMESTAMP_NTZ))))))) AND (denormalised_restaurant_with_company.first_contract_effective_date ) < ((DATEADD('day', 28, DATEADD('day', -28, DATE_TRUNC('week', DATE_TRUNC('day', CONVERT_TIMEZONE('UTC', 'Europe/Paris', CAST(CURRENT_TIMESTAMP() AS TIMESTAMP_NTZ))))))))))) AND ((UPPER(denormalised_restaurant_with_company.restaurant_country_name ) = UPPER('France'))) AND ((UPPER(Case when denormalised_restaurant_with_company.status in ('CLOSED', 'OPEN', 'READY_TO_OPEN') then 'LIVE'																								
+When denormalised_restaurant_with_company.status in ('DISABLED') then 'DISABLED'																								
+Else 'UNKNOWN' END ) = UPPER('LIVE'))) AND ((UPPER(denormalised_restaurant_with_company.restaurant_country_name ) LIKE UPPER('%')))																								
+AND restaurant_zone_code IN (SELECT DISTINCT zone_code FROM production.reference.zone_city_country WHERE large_city_region = 'Regional France - Expansion')																								
+GROUP BY 1,2																								
+ORDER BY 2 DESC;																								
+																								
+-- CROSS-ZONE BY CX ZONE																								
+CREATE OR REPLACE TEMP TABLE tmp_cx_cross_zone_ex AS																								
+select DATE_TRUNC(week,order_date) as date_key																								
+, 'Regional France - Expansion' as CUSTOMER_ZONE_CODE																								
+, SUM(IFF(cross_zone_delivery ='TRUE',1,0)) as cx_cross_zone_ov																								
+, SUM(IFF(cross_zone_delivery ='FALSE',1,0)) as cx_in_zone_ov																								
+FROM production.denormalised.orders																								
+WHERE TRUE																								
+AND COUNTRY_NAME = 'France'																								
+AND (DATEDIFF(week,order_date,CURRENT_DATE) > 0 AND DATE_TRUNC(week,order_date) > '2021-10-01')																								
+																								
+AND customer_zone_code IN (SELECT DISTINCT zone_code FROM production.reference.zone_city_country WHERE large_city_region = 'Regional France - Expansion')																								
+AND status = 'DELIVERED'																								
+GROUP BY 1,2																								
+ORDER BY 2;																								
+																								
+-- CROSS-ZONE BY RX ZONE																								
+CREATE OR REPLACE TEMP TABLE tmp_rx_cross_zone_ex AS																								
+select DATE_TRUNC(week,order_date) as date_key																								
+, 'Regional France - Expansion' as RESTAURANT_ZONE_CODE																								
+, SUM(IFF(cross_zone_delivery ='TRUE',1,0)) as rx_cross_zone_ov																								
+, SUM(IFF(cross_zone_delivery ='FALSE',1,0)) as rx_in_zone_ov																								
+FROM production.denormalised.orders																								
+WHERE TRUE																								
+AND COUNTRY_NAME = 'France'																								
+AND (DATEDIFF(week,order_date,CURRENT_DATE) > 0 AND DATE_TRUNC(week,order_date) > '2021-10-01')																								
+																								
+AND restaurant_zone_code IN (SELECT DISTINCT zone_code FROM production.reference.zone_city_country WHERE large_city_region = 'Regional France - Expansion')																								
+AND status = 'DELIVERED'																								
+GROUP BY 1,2																								
+ORDER BY 2																								
+;																								
+																								
+--MGNT V2																								
+CREATE OR REPLACE TEMP TABLE tmp_tracker_mgmt_ex_v2 AS																								
+SELECT DATE_TRUNC(week,date_value_day) AS date_key																								
+, 'Regional France - Expansion' as ZONE_CODE																								
+,(NULLIF(sum(cnt_b10_incidence),0))/NULLIF((NULLIF(sum(cnt_b10_denominator),0)),0) AS pct_B10_incidence																								
+,sum(CNT_B10_UNACCEPTABLE_LATE)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_ul																								
+,sum(CNT_B10_UNACCEPTABLE_LATE_5_TO_15)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_ul_late_5																								
+,sum(CNT_B10_UNACCEPTABLE_LATE_15_PLUS)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_ul_late_15																								
+,sum(CNT_B10_MISSING_ITEM)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_mi																								
+,sum(CNT_B10_REJECTION)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_rej																								
+,sum(CNT_B10_OMDNR)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_OMDNR																								
+,sum(CNT_B10_CANCELLATION)/nullif((COALESCE(SUM(cnt_b10_denominator), 0)),0) AS pct_B10_can																								
+																								
+FROM production.aggregate.mgmt_report_zone_day_metrics																								
+WHERE TRUE																								
+AND COUNTRY_NAME = 'France'																								
+AND zone_code <> 'Unknown'																								
+AND (DATEDIFF(week,date_value_day,CURRENT_DATE) > 0 AND DATE_TRUNC(week,date_value_day) > '2021-10-01')																								
+AND zone_code IN (SELECT DISTINCT zone_code FROM production.reference.zone_city_country WHERE large_city_region = 'Regional France - Expansion')																								
+																								
+																								
+GROUP BY 1,2;																								
+																								
+																								
+DESC TABLE PRODUCTION.REFERENCE.DENORMALISED_RESTAURANT_WITH_COMPANY;																								
+																								
+																								
+CREATE OR REPLACE TEMP TABLE tmp_all_tracker AS																								
+SELECT ttm.date_key																								
+, ttm.ZONE_CODE																								
+, open_pct																								
+, avg_asap_rx																								
+																								
+, cnt_open																								
+, cnt_live																								
+																								
+, cnt_open_G25																								
+, cnt_open_G3																								
+, cnt_open_Enterprise																								
+, cnt_open_LG																								
+, cnt_open_LS																								
+, cnt_open_LB																								
+, cnt_open_New																								
+, cnt_open_convenience																								
+, cnt_open_noseg																								
+																								
+, cnt_live_G25																								
+, cnt_live_G3																								
+, cnt_live_Enterprise																								
+, cnt_live_LG																								
+, cnt_live_LS																								
+, cnt_live_LB																								
+, cnt_live_New																								
+, cnt_live_convenience																								
+, cnt_live_noseg																								
+																								
+, avg_distance_r_to_c																								
+, orders_delivered																								
+, AOV																								
+, comm																								
+, comm_pct																								
+, avg_delivery_fee_revenue																								
+, avg_refund																								
+, sn.sessions																								
+, sn.cvr																								
+, pct_B10_incidence																								
+, pct_B10_ul																								
+, pct_B10_ul_late_5																								
+, pct_B10_ul_late_15																								
+, pct_B10_mi																								
+, pct_B10_rej																								
+, pct_B10_OMDNR																								
+, pct_B10_CAN																								
+,pct_b10_amended																								
+,pct_b10_spoiled																								
+, avg_eod																								
+, OPPO																								
+, NPO																								
+, CPO																								
+, pfm_roo_rx_seen																								
+, pmf_ue_rx_seen																								
+																								
+, menu_cvr																								
+																								
+, returned_rx																								
+, returned_G25																								
+, returned_Enterprise																								
+, returned_LG																								
+, returned_LS																								
+, returned_LB																								
+, returned_New																								
+, returned_convenience																								
+																								
+, war_Pt																								
+, sn.nc_sessions																								
+, sn.ec_sessions																								
+, sn.nc_cvr																								
+, sn.ec_cvr																								
+																								
+, open_pct_active_rx																								
+, pct_lunch_orders																								
+, pct_RSR																								
+																								
+, pct_open_rx_pC																								
+																								
+, pct_convenience																								
+, pct_marketer																								
+, pct_vb																								
+, pct_c_c																								
+, pct_TR																								
+, pct_week																								
+, pct_weekend																								
+, pct_g3																								
+, PLUS																								
+, New_customers																								
+, distinct_cx																								
+, distinct_RX																								
+, fivemins_pt																								
+, rx_signed																								
+, cuisine_div																								
+, DF_PO																								
+, plus_subscribers																								
+, new_plus_subscribers																								
+, pct_rsr_fri																								
+,  pct_rsr_sun																								
+, pct_rain																								
+, KFC_launched																								
+,BK_launched																								
+,McDo_launched																								
+, NUX																								
+,other_voucher																								
+, main_voucher																								
+, total_tr																								
+, fd																								
+																								
+, cx_cross_zone_ov																								
+, cx_in_zone_ov																								
+																								
+, rx_cross_zone_ov																								
+, rx_in_zone_ov																								
+																								
+, NC																								
+																								
+FROM tmp_tracker_mgmt ttm																								
+LEFT JOIN tmp_tracker_open tto																								
+ON tto.DATE_KEY = ttm.date_key																								
+AND tto.ZONE_CODE = ttm.ZONE_CODE																								
+LEFT JOIN tmp_tracker_ops ttops																								
+ON ttops.date_key = ttm.date_key																								
+AND ttops.zone_code = ttm.zone_code																								
+LEFT JOIN tmp_tracker_pmf ttp																								
+ON ttp.date_key = ttm.date_key																								
+AND ttp.zone_code = ttm.zone_code																								
+LEFT JOIN tmp_tracker_returned r																								
+ON r.date_key = ttm.date_key																								
+AND r.restaurant_zone_code = ttm.zone_code																								
+LEFT JOIN tmp_sessions_new sn																								
+ON sn.date_key = ttm.date_key																								
+AND sn.zone_code = ttm.zone_code																								
+LEFT JOIN tmp_other o																								
+ON o.date_key = ttm.date_key																								
+AND o.zone_code = ttm.zone_code																								
+LEFT JOIN tmp_sign s																								
+ON s.date_key = ttm.date_key																								
+AND s.restaurant_zone_code = ttm.zone_code																								
+LEFT JOIN tmp_cx_cross_zone t																								
+ON t.date_key = ttm.date_key																								
+AND t.CUSTOMER_ZONE_CODE = ttm.ZONE_CODE																								
+LEFT JOIN tmp_rx_cross_zone u																								
+ON u.date_key = ttm.date_key																								
+AND u.RESTAURANT_ZONE_CODE = ttm.ZONE_CODE																								
+LEFT JOIN tmp_tracker_mgmt_v2 mngt2																								
+ON mngt2.DATE_KEY = ttm.date_key																								
+AND mngt2.ZONE_CODE = ttm.ZONE_CODE																								
+ORDER BY 2,1;																								
+																								
+--Expansion Hub Level Join																								
+CREATE OR REPLACE TEMP TABLE tmp_all_tracker_ex AS																								
+SELECT ttm.date_key																								
+, ttm.ZONE_CODE																								
+, open_pct																								
+, avg_asap_rx																								
+																								
+, cnt_open																								
+, cnt_live																								
+																								
+, cnt_open_G25																								
+, cnt_open_G3																								
+, cnt_open_Enterprise																								
+, cnt_open_LG																								
+, cnt_open_LS																								
+, cnt_open_LB																								
+, cnt_open_New																								
+, cnt_open_convenience																								
+, cnt_open_noseg																								
+																								
+, cnt_live_G25																								
+, cnt_live_G3																								
+, cnt_live_Enterprise																								
+, cnt_live_LG																								
+, cnt_live_LS																								
+, cnt_live_LB																								
+, cnt_live_New																								
+, cnt_live_convenience																								
+, cnt_live_noseg																								
+																								
+, avg_distance_r_to_c																								
+, orders_delivered																								
+, AOV																								
+, comm																								
+, comm_pct																								
+, avg_delivery_fee_revenue																								
+, avg_refund																								
+, sn.sessions																								
+, sn.cvr																								
+, pct_B10_incidence																								
+, pct_B10_ul																								
+, pct_B10_ul_late_5																								
+, pct_B10_ul_late_15																								
+, pct_B10_mi																								
+, pct_B10_rej																								
+, pct_B10_OMDNR																								
+, pct_B10_CAN																								
+,pct_b10_amended																								
+,pct_b10_spoiled																								
+, avg_eod																								
+, OPPO																								
+, NPO																								
+, CPO																								
+, pfm_roo_rx_seen																								
+, pmf_ue_rx_seen																								
+																								
+, menu_cvr																								
+																								
+, returned_rx																								
+, returned_G25																								
+, returned_Enterprise																								
+, returned_LG																								
+, returned_LS																								
+, returned_LB																								
+, returned_New																								
+, returned_convenience																								
+																								
+, war_Pt																								
+, sn.nc_sessions																								
+, sn.ec_sessions																								
+, sn.nc_cvr																								
+, sn.ec_cvr																								
+																								
+, open_pct_active_rx																								
+, pct_lunch_orders																								
+, pct_RSR																								
+																								
+, pct_open_rx_pC																								
+																								
+, pct_convenience																								
+, pct_marketer																								
+, pct_vb																								
+, pct_c_c																								
+, pct_TR																								
+, pct_week																								
+, pct_weekend																								
+, pct_g3																								
+, PLUS																								
+, New_customers																								
+, distinct_cx																								
+, distinct_RX																								
+, fivemins_pt																								
+, rx_signed																								
+, cuisine_div																								
+, DF_PO																								
+, plus_subscribers																								
+, new_plus_subscribers																								
+, pct_rsr_fri																								
+,  pct_rsr_sun																								
+, pct_rain																								
+, KFC_launched																								
+,BK_launched																								
+,McDo_launched																								
+, NUX																								
+,other_voucher																								
+, main_voucher																								
+, total_tr																								
+, fd																								
+																								
+, cx_cross_zone_ov																								
+, cx_in_zone_ov																								
+																								
+, rx_cross_zone_ov																								
+, rx_in_zone_ov																								
+																								
+, NC																								
+																								
+FROM tmp_tracker_mgmt_ex ttm																								
+LEFT JOIN tmp_tracker_open_ex tto																								
+ON tto.DATE_KEY = ttm.date_key																								
+AND tto.ZONE_CODE = ttm.ZONE_CODE																								
+LEFT JOIN tmp_tracker_ops_ex ttops																								
+ON ttops.date_key = ttm.date_key																								
+AND ttops.zone_code = ttm.zone_code																								
+LEFT JOIN tmp_tracker_pmf_ex ttp																								
+ON ttp.date_key = ttm.date_key																								
+AND ttp.zone_code = ttm.zone_code																								
+LEFT JOIN tmp_tracker_returned_ex r																								
+ON r.date_key = ttm.date_key																								
+AND r.restaurant_zone_code = ttm.zone_code																								
+LEFT JOIN tmp_sessions_new_ex sn																								
+ON sn.date_key = ttm.date_key																								
+AND sn.zone_code = ttm.zone_code																								
+LEFT JOIN tmp_other_ex o																								
+ON o.date_key = ttm.date_key																								
+AND o.zone_code = ttm.zone_code																								
+LEFT JOIN tmp_sign_ex s																								
+ON s.date_key = ttm.date_key																								
+AND s.restaurant_zone_code = ttm.zone_code																								
+LEFT JOIN tmp_cx_cross_zone_ex t																								
+ON t.date_key = ttm.date_key																								
+AND t.CUSTOMER_ZONE_CODE = ttm.ZONE_CODE																								
+LEFT JOIN tmp_rx_cross_zone_ex u																								
+ON u.date_key = ttm.date_key																								
+AND u.RESTAURANT_ZONE_CODE = ttm.ZONE_CODE																								
+LEFT JOIN tmp_tracker_mgmt_ex_v2  mngt2																								
+ON mngt2.DATE_KEY = ttm.date_key																								
+AND mngt2.ZONE_CODE = ttm.ZONE_CODE																								
+ORDER BY 2,1;																								
+																								
+																								
+-- Final Output																								
+SELECT *																								
+FROM tmp_all_tracker																								
+UNION ALL																								
+SELECT *																								
+FROM tmp_all_tracker_ex																								
+;																								
+																								
+																								
+																								
+																							
+																								
