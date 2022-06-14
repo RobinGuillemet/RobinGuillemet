@@ -1,0 +1,1833 @@
+------------------------- WEEKLY PERFORMANCE TRACKER ------------------
+
+-------------------------------- I - MS DATA --------------------------
+-------------------------------- CITY LEVEL ---------------------------
+
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_ms_data AS
+SELECT
+    DATE(DATE_TRUNC('week', email_hour_timestamp)) AS WEEK
+     , CASE
+    WHEN zone_code IN ('PLDN','PVIN','PBAG','PCTL','PNP','PLD','PGN') THEN 'Paris Outer 1'
+    WHEN zone_code IN ('PSD','PISE','PRM','PARG','PAUL','PBOB','PSAR','PANT','PVER','PCSM','PSMR','PTA','PSUR','PCLA','PMAS','PBOI','PVEL','PVTY','PBON','PSG','PPLA','PGLG','PVJF','PTHI','PCHOU','PVCG','PAMJ','PMON','MELU','PIG','PTOR','PNOI','PCLG','PSA','PVSG','POLY','PPC','PGNY','PSAV','PVSD','PJOY','PEV','PCER','PTBY','PCE','PSMO','PMAV','PBOR','PPON','PCSH','PMOY','PSEN','PLM','PPER','PCHL','PASO','PVPA','PBSG','PCSY','PSGA','FAPO','PBRU') THEN 'Paris Outer 2'
+    WHEN zone_code IN ('PCN','PE','PNO','PCRG','PNE','PN','PSO','PBB','PO','PLP','PSE','PS','PCLI','PMRG','PI') THEN 'Paris Inner'
+    ELSE deliveroo_city
+    END AS CITY
+    -- WEEKLY MS
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'deliveroo' THEN ORDER_ID END) as roo_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'uber eats' THEN ORDER_ID END) as ue_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'just eat' THEN ORDER_ID END) as je_orders
+     , COUNT(DISTINCT order_id) AS all_orders
+     , roo_orders / NULLIF(all_orders,0) AS roo_weekly_ms
+     , ue_orders / NULLIF(all_orders,0) AS ue_weekly_ms
+     , je_orders / NULLIF(all_orders,0) AS je_weekly_ms
+    -- WEEKLY QSR MS
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as roo_qsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as ue_qsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'just eat' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as je_qsr_orders
+     , roo_qsr_orders / NULLIF((roo_qsr_orders + ue_qsr_orders + je_qsr_orders),0) AS roo_qsr_weekly_ms
+     , ue_qsr_orders / NULLIF((roo_qsr_orders + ue_qsr_orders + je_qsr_orders),0) AS ue_qsr_weekly_ms
+    -- WEEKLY nQSR MS
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as roo_nqsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as ue_nqsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'just eat' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as je_nqsr_orders
+     , roo_nqsr_orders / NULLIF((roo_nqsr_orders + ue_nqsr_orders + je_nqsr_orders),0) AS roo_nqsr_weekly_ms
+     , ue_nqsr_orders / NULLIF((roo_nqsr_orders + ue_nqsr_orders + je_nqsr_orders),0) AS ue_nqsr_weekly_ms
+    -- WEEKLY G3 MS
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('mcdonald''s')) THEN ORDER_ID END) as roo_mcdo_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('kfc')) THEN ORDER_ID END) as roo_kfc_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('burger king')) THEN ORDER_ID END) as roo_bk_orders
+     , COUNT(DISTINCT CASE WHEN (restaurant_name  IN ('mcdonald''s')) THEN ORDER_ID END) as all_mcdo_orders
+     , COUNT(DISTINCT CASE WHEN (restaurant_name  IN ('kfc')) THEN ORDER_ID END) as all_kfc_orders
+     , COUNT(DISTINCT CASE WHEN (restaurant_name  IN ('burger king')) THEN ORDER_ID END) as all_bk_orders
+     , roo_mcdo_orders / NULLIF(all_mcdo_orders,0) AS roo_mcdo_weekly_ms
+     , roo_kfc_orders / NULLIF(all_kfc_orders,0) AS roo_kfc_weekly_ms
+     , roo_bk_orders / NULLIF(all_bk_orders,0) AS roo_bk_weekly_ms
+    -- DAY OF WEEK
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Mon' THEN order_id END) AS monday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Tue' THEN order_id END) AS tuesday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Wed' THEN order_id END) AS wednesday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Thu' THEN order_id END) AS thursday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Fri' THEN order_id END) AS friday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Sat' THEN order_id END) AS saturday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Sun' THEN order_id END) AS sunday_roo_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Mon' THEN order_id END) AS monday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Tue' THEN order_id END) AS tuesday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Wed' THEN order_id END) AS wednesday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Thu' THEN order_id END) AS thursday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Fri' THEN order_id END) AS friday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Sat' THEN order_id END) AS saturday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Sun' THEN order_id END) AS sunday_all_orders
+     , monday_roo_orders / NULLIF(monday_all_orders,0) AS monday_roo_ms
+     , tuesday_roo_orders / NULLIF(tuesday_all_orders,0) AS tuesday_roo_ms
+     , wednesday_roo_orders / NULLIF(wednesday_all_orders,0) AS wednesday_roo_ms
+     , thursday_roo_orders / NULLIF(thursday_all_orders,0) AS thursday_roo_ms
+     , friday_roo_orders / NULLIF(friday_all_orders,0) AS friday_roo_ms
+     , saturday_roo_orders / NULLIF(saturday_all_orders,0) AS saturday_roo_ms
+     , sunday_roo_orders / NULLIF(sunday_all_orders,0) AS sunday_roo_ms
+    -- WEEKLY LATE NIGHT MS
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'deliveroo' AND HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24) THEN ORDER_ID END) as roo_ln_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'uber eats' AND HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24)  THEN ORDER_ID END) as ue_ln_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'just eat' AND HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24)  THEN ORDER_ID END) as je_ln_orders
+     , COUNT(DISTINCT CASE WHEN HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24) THEN order_id END) AS all_ln_orders
+     , roo_ln_orders / NULLIF(all_ln_orders,0) AS roo_weekly_ln_ms
+     , ue_ln_orders / NULLIF(all_ln_orders,0) AS ue_weekly_ln_ms
+     , je_ln_orders / NULLIF(all_ln_orders,0) AS je_weekly_ln_ms
+
+    -- WEEKLY GTV MS
+     , SUM(CASE WHEN merchant_name = 'deliveroo' THEN GTV END) as roo_gtv
+    , SUM(CASE WHEN merchant_name = 'uber eats' THEN GTV END) as ue_gtv
+    , COALESCE(SUM(CASE WHEN merchant_name = 'just eat' THEN GTV END),0) as je_gtv
+    , SUM(GTV) AS all_gtv
+    , roo_gtv / NULLIF(all_gtv,0) AS roo_weekly_ms_gtv
+    , ue_gtv / NULLIF(all_gtv,0) AS ue_weekly_ms_gtv
+    , COALESCE(je_gtv / NULLIF(all_gtv,0),0) AS je_weekly_ms_gtv
+    -- WEEKLY GTV QSR MS
+    , SUM(CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as roo_qsr_gtv
+    , SUM(CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as ue_qsr_gtv
+    , COALESCE(SUM(CASE WHEN (merchant_name = 'just eat' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END),0) as je_qsr_gtv
+    , SUM(CASE WHEN restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king') THEN GTV END) as all_qsr_gtv
+    , roo_qsr_gtv / NULLIF((roo_qsr_gtv + ue_qsr_gtv + je_qsr_gtv),0) AS roo_qsr_weekly_ms_gtv
+    , ue_qsr_gtv / NULLIF((roo_qsr_gtv + ue_qsr_gtv + je_qsr_gtv),0) AS ue_qsr_weekly_ms_gtv
+    , je_qsr_gtv / NULLIF((roo_qsr_gtv + ue_qsr_gtv + je_qsr_gtv),0) AS je_qsr_weekly_ms_gtv
+    -- WEEKLY GTV nQSR MS
+    , SUM(CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as roo_nqsr_gtv
+    , SUM(CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as ue_nqsr_gtv
+    , COALESCE(SUM(CASE WHEN (merchant_name = 'just eat' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END),0) as je_nqsr_gtv
+    , SUM(CASE WHEN restaurant_name NOT IN ('mcdonald''s', 'kfc', 'burger king') THEN GTV END) as all_nqsr_gtv
+    , roo_nqsr_gtv / NULLIF((roo_nqsr_gtv + ue_nqsr_gtv + je_nqsr_gtv),0) AS roo_nqsr_weekly_ms_gtv
+    , ue_nqsr_gtv / NULLIF((roo_nqsr_gtv + ue_nqsr_gtv + je_nqsr_gtv),0) AS ue_nqsr_weekly_ms_gtv
+    , je_nqsr_gtv / NULLIF((roo_nqsr_gtv + ue_nqsr_gtv + je_nqsr_gtv),0) AS je_nqsr_weekly_ms_gtv
+
+FROM SCRATCH.COMPETITOR.FOX_INTELLIGENCE_ORDERS  AS fio
+     LEFT JOIN PRODUCTION.REFERENCE.ZONE_CITY_COUNTRY  AS zcc
+     ON fio.DELIVEROO_ZONE_CODE = zcc.ZONE_CODE
+
+WHERE TRUE
+  AND (DATE_TRUNC('week', fio."EMAIL_HOUR_TIMESTAMP") >= DATEADD(week, -31, DATE_TRUNC('week', current_date))
+    OR DATE_TRUNC('week', fio."EMAIL_HOUR_TIMESTAMP") = DATEADD(week, -52, DATE_TRUNC('week', current_date)))
+  AND DATE_TRUNC('week', email_hour_timestamp) < DATE_TRUNC('week', current_date)
+  AND fio.country = 'France'
+  AND UPPER(fio.merchant_name) IN ('DELIVEROO','UBER EATS','JUST EAT')
+
+GROUP BY 1,2
+ORDER BY 2,1 DESC
+;
+
+-------------------------------- COUNTRY LEVEL ---------------------------
+
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_ms_data_country AS
+SELECT
+    DATE(DATE_TRUNC('week', email_hour_timestamp)) AS WEEK
+     , country AS country
+    -- WEEKLY MS
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'deliveroo' THEN ORDER_ID END) as roo_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'uber eats' THEN ORDER_ID END) as ue_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'just eat' THEN ORDER_ID END) as je_orders
+     , COUNT(DISTINCT order_id) AS all_orders
+     , roo_orders / NULLIF(all_orders,0) AS roo_weekly_ms
+     , ue_orders / NULLIF(all_orders,0) AS ue_weekly_ms
+     , je_orders / NULLIF(all_orders,0) AS je_weekly_ms
+    -- WEEKLY QSR MS
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as roo_qsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as ue_qsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'just eat' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as je_qsr_orders
+     , roo_qsr_orders / NULLIF((roo_qsr_orders + ue_qsr_orders + je_qsr_orders),0) AS roo_qsr_weekly_ms
+     , ue_qsr_orders / NULLIF((roo_qsr_orders + ue_qsr_orders + je_qsr_orders),0) AS ue_qsr_weekly_ms
+    -- WEEKLY nQSR MS
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as roo_nqsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as ue_nqsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'just eat' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as je_nqsr_orders
+     , roo_nqsr_orders / NULLIF((roo_nqsr_orders + ue_nqsr_orders + je_nqsr_orders),0) AS roo_nqsr_weekly_ms
+     , ue_nqsr_orders / NULLIF((roo_nqsr_orders + ue_nqsr_orders + je_nqsr_orders),0) AS ue_nqsr_weekly_ms
+    -- WEEKLY G3 MS
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('mcdonald''s')) THEN ORDER_ID END) as roo_mcdo_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('kfc')) THEN ORDER_ID END) as roo_kfc_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('burger king')) THEN ORDER_ID END) as roo_bk_orders
+     , COUNT(DISTINCT CASE WHEN (restaurant_name  IN ('mcdonald''s')) THEN ORDER_ID END) as all_mcdo_orders
+     , COUNT(DISTINCT CASE WHEN (restaurant_name  IN ('kfc')) THEN ORDER_ID END) as all_kfc_orders
+     , COUNT(DISTINCT CASE WHEN (restaurant_name  IN ('burger king')) THEN ORDER_ID END) as all_bk_orders
+     , roo_mcdo_orders / NULLIF(all_mcdo_orders,0) AS roo_mcdo_weekly_ms
+     , roo_kfc_orders / NULLIF(all_kfc_orders,0) AS roo_kfc_weekly_ms
+     , roo_bk_orders / NULLIF(all_bk_orders,0) AS roo_bk_weekly_ms
+    -- DAY OF WEEK
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Mon' THEN order_id END) AS monday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Tue' THEN order_id END) AS tuesday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Wed' THEN order_id END) AS wednesday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Thu' THEN order_id END) AS thursday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Fri' THEN order_id END) AS friday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Sat' THEN order_id END) AS saturday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Sun' THEN order_id END) AS sunday_roo_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Mon' THEN order_id END) AS monday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Tue' THEN order_id END) AS tuesday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Wed' THEN order_id END) AS wednesday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Thu' THEN order_id END) AS thursday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Fri' THEN order_id END) AS friday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Sat' THEN order_id END) AS saturday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Sun' THEN order_id END) AS sunday_all_orders
+     , monday_roo_orders / NULLIF(monday_all_orders,0) AS monday_roo_ms
+     , tuesday_roo_orders / NULLIF(tuesday_all_orders,0) AS tuesday_roo_ms
+     , wednesday_roo_orders / NULLIF(wednesday_all_orders,0) AS wednesday_roo_ms
+     , thursday_roo_orders / NULLIF(thursday_all_orders,0) AS thursday_roo_ms
+     , friday_roo_orders / NULLIF(friday_all_orders,0) AS friday_roo_ms
+     , saturday_roo_orders / NULLIF(saturday_all_orders,0) AS saturday_roo_ms
+     , sunday_roo_orders / NULLIF(sunday_all_orders,0) AS sunday_roo_ms
+    -- WEEKLY LATE NIGHT MS
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'deliveroo' AND HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24) THEN ORDER_ID END) as roo_ln_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'uber eats' AND HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24)  THEN ORDER_ID END) as ue_ln_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'just eat' AND HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24)  THEN ORDER_ID END) as je_ln_orders
+     , COUNT(DISTINCT CASE WHEN HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24) THEN order_id END) AS all_ln_orders
+     , roo_ln_orders / NULLIF(all_ln_orders,0) AS roo_weekly_ln_ms
+     , ue_ln_orders / NULLIF(all_ln_orders,0) AS ue_weekly_ln_ms
+     , je_ln_orders / NULLIF(all_ln_orders,0) AS je_weekly_ln_ms
+
+    -- WEEKLY GTV MS
+     , SUM(CASE WHEN merchant_name = 'deliveroo' THEN GTV END) as roo_gtv
+    , SUM(CASE WHEN merchant_name = 'uber eats' THEN GTV END) as ue_gtv
+    , COALESCE(SUM(CASE WHEN merchant_name = 'just eat' THEN GTV END),0) as je_gtv
+    , SUM(GTV) AS all_gtv
+    , roo_gtv / NULLIF(all_gtv,0) AS roo_weekly_ms_gtv
+    , ue_gtv / NULLIF(all_gtv,0) AS ue_weekly_ms_gtv
+    , COALESCE(je_gtv / NULLIF(all_gtv,0),0) AS je_weekly_ms_gtv
+    -- WEEKLY GTV QSR MS
+    , SUM(CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as roo_qsr_gtv
+    , SUM(CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as ue_qsr_gtv
+    , COALESCE(SUM(CASE WHEN (merchant_name = 'just eat' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END),0) as je_qsr_gtv
+    , SUM(CASE WHEN restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king') THEN GTV END) as all_qsr_gtv
+    , roo_qsr_gtv / NULLIF((roo_qsr_gtv + ue_qsr_gtv + je_qsr_gtv),0) AS roo_qsr_weekly_ms_gtv
+    , ue_qsr_gtv / NULLIF((roo_qsr_gtv + ue_qsr_gtv + je_qsr_gtv),0) AS ue_qsr_weekly_ms_gtv
+    , je_qsr_gtv / NULLIF((roo_qsr_gtv + ue_qsr_gtv + je_qsr_gtv),0) AS je_qsr_weekly_ms_gtv
+    -- WEEKLY GTV nQSR MS
+    , SUM(CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as roo_nqsr_gtv
+    , SUM(CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as ue_nqsr_gtv
+    , COALESCE(SUM(CASE WHEN (merchant_name = 'just eat' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END),0) as je_nqsr_gtv
+    , SUM(CASE WHEN restaurant_name NOT IN ('mcdonald''s', 'kfc', 'burger king') THEN GTV END) as all_nqsr_gtv
+    , roo_nqsr_gtv / NULLIF((roo_nqsr_gtv + ue_nqsr_gtv + je_nqsr_gtv),0) AS roo_nqsr_weekly_ms_gtv
+    , ue_nqsr_gtv / NULLIF((roo_nqsr_gtv + ue_nqsr_gtv + je_nqsr_gtv),0) AS ue_nqsr_weekly_ms_gtv
+    , je_nqsr_gtv / NULLIF((roo_nqsr_gtv + ue_nqsr_gtv + je_nqsr_gtv),0) AS je_nqsr_weekly_ms_gtv
+
+FROM SCRATCH.COMPETITOR.FOX_INTELLIGENCE_ORDERS  AS fio
+     LEFT JOIN PRODUCTION.REFERENCE.ZONE_CITY_COUNTRY  AS zcc
+     ON fio.DELIVEROO_ZONE_CODE = zcc.ZONE_CODE
+
+WHERE TRUE
+  AND (DATE_TRUNC('week', fio."EMAIL_HOUR_TIMESTAMP") >= DATEADD(week, -31, DATE_TRUNC('week', current_date))
+    OR DATE_TRUNC('week', fio."EMAIL_HOUR_TIMESTAMP") = DATEADD(week, -52, DATE_TRUNC('week', current_date)))
+  AND DATE_TRUNC('week', email_hour_timestamp) < DATE_TRUNC('week', current_date)
+  AND fio.country = 'France'
+  AND UPPER(fio.merchant_name) IN ('DELIVEROO','UBER EATS','JUST EAT')
+
+GROUP BY 1,2
+ORDER BY 2,1 DESC
+;
+
+---------------------------- ARCHETYPE LEVEL ---------------------------
+
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_ms_data_archetype AS
+SELECT
+    DATE(DATE_TRUNC('week', email_hour_timestamp)) AS WEEK
+     , CASE
+    WHEN deliveroo_zone_code IN ('PLDN','PVIN','PBAG','PCTL','PNP','PLD','PGN','PSD','PISE','PRM','PARG','PAUL','PBOB','PSAR','PANT','PVER','PCSM','PSMR','PTA','PSUR','PCLA','PMAS','PBOI','PVEL','PVTY','PBON','PSG','PPLA','PGLG','PVJF','PTHI','PCHOU','PVCG','PAMJ','PMON','MELU','PIG','PTOR','PNOI','PCLG','PSA','PVSG','POLY','PPC','PGNY','PSAV','PVSD','PJOY','PEV','PCER','PTBY','PCE','PSMO','PMAV','PBOR','PPON','PCSH','PMOY','PSEN','PLM','PPER','PCHL','PASO','PVPA','PBSG','PCSY','PSGA','FAPO','PBRU','LYON','LCRC','LYNO','LSE','LNE','LOUP','LYSO','LYMO','TLS1','TSTO','TBLM','TBLA','TTF','MARS','MALO','MARB','MAGL','MARM','MARV','MTR','MTRC','MTRP','NC','NACS','VENC','ANTB','REN','RENS','RMS','RMSN','TRS','TRJC','TRSC','LCWS','LVDA','RBTG','FACH','SEQD') THEN 'Invest 1'
+    WHEN deliveroo_zone_code IN ('NAC','DIJ','CFD','ANG','ROU','ORL','LMS','BRST','PTRS','METZ','LHV','ANCY','ANCS','AMS','NEMS','CANN') THEN 'Invest 2'
+    WHEN deliveroo_zone_code IN ('NAT','NASH','NARV','GRE2','GREC','GREG','PCN','PE','PNO','PCRG','PNE','PN','PSO','PBB','PO','PLP','PSE','PS','PCLI','PMRG','PI','VLCN','TROY','MUL','BESA','ALBI','VICO','NASL','BDX','BLBE','BME','BTPG','BBVO','BLOC','BCAR','BMJ','AIX1','AIX2','STRG','SIOL','SVML') THEN 'Profit Pool'
+    WHEN deliveroo_zone_code IN ('VANS','VAL','TARB','QMPR','PERP','MEAU','LRNT','LRSY','COMP','COLM','CHOC','CHAT','CBRY','BLOI','BEAU','BAY','AVG','ARRA','ANNE','AGEN','TLN','TLN2','STE','PAU','NIME','LIMO','LRC','CAEN','TULL','TORO','THIO','SABO','SNAZ','SDVO','RUMY','ROUS','RFOR','RAMB','PERI','POMO','NOY','MERU','MNTB','MAUB','MLJO','LOUV','LGWY','LENS','WAZI','LAVA','FEJO','GUIG','FREY','FTNB','EVRX','DUNK','DALE','CREI','COUL','CHAG','CAU','CASS','CALA','BEZI','BOUM','BAIL','ARG') THEN 'KTLO'
+    END AS location
+    -- WEEKLY MS
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'deliveroo' THEN ORDER_ID END) as roo_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'uber eats' THEN ORDER_ID END) as ue_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'just eat' THEN ORDER_ID END) as je_orders
+     , COUNT(DISTINCT order_id) AS all_orders
+     , roo_orders / NULLIF(all_orders,0) AS roo_weekly_ms
+     , ue_orders / NULLIF(all_orders,0) AS ue_weekly_ms
+     , je_orders / NULLIF(all_orders,0) AS je_weekly_ms
+    -- WEEKLY QSR MS
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as roo_qsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as ue_qsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'just eat' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as je_qsr_orders
+     , roo_qsr_orders / NULLIF((roo_qsr_orders + ue_qsr_orders + je_qsr_orders),0) AS roo_qsr_weekly_ms
+     , ue_qsr_orders / NULLIF((roo_qsr_orders + ue_qsr_orders + je_qsr_orders),0) AS ue_qsr_weekly_ms
+    -- WEEKLY nQSR MS
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as roo_nqsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as ue_nqsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'just eat' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as je_nqsr_orders
+     , roo_nqsr_orders / NULLIF((roo_nqsr_orders + ue_nqsr_orders + je_nqsr_orders),0) AS roo_nqsr_weekly_ms
+     , ue_nqsr_orders / NULLIF((roo_nqsr_orders + ue_nqsr_orders + je_nqsr_orders),0) AS ue_nqsr_weekly_ms
+    -- WEEKLY G3 MS
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('mcdonald''s')) THEN ORDER_ID END) as roo_mcdo_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('kfc')) THEN ORDER_ID END) as roo_kfc_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('burger king')) THEN ORDER_ID END) as roo_bk_orders
+     , COUNT(DISTINCT CASE WHEN (restaurant_name  IN ('mcdonald''s')) THEN ORDER_ID END) as all_mcdo_orders
+     , COUNT(DISTINCT CASE WHEN (restaurant_name  IN ('kfc')) THEN ORDER_ID END) as all_kfc_orders
+     , COUNT(DISTINCT CASE WHEN (restaurant_name  IN ('burger king')) THEN ORDER_ID END) as all_bk_orders
+     , roo_mcdo_orders / NULLIF(all_mcdo_orders,0) AS roo_mcdo_weekly_ms
+     , roo_kfc_orders / NULLIF(all_kfc_orders,0) AS roo_kfc_weekly_ms
+     , roo_bk_orders / NULLIF(all_bk_orders,0) AS roo_bk_weekly_ms
+    -- DAY OF WEEK
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Mon' THEN order_id END) AS monday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Tue' THEN order_id END) AS tuesday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Wed' THEN order_id END) AS wednesday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Thu' THEN order_id END) AS thursday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Fri' THEN order_id END) AS friday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Sat' THEN order_id END) AS saturday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Sun' THEN order_id END) AS sunday_roo_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Mon' THEN order_id END) AS monday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Tue' THEN order_id END) AS tuesday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Wed' THEN order_id END) AS wednesday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Thu' THEN order_id END) AS thursday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Fri' THEN order_id END) AS friday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Sat' THEN order_id END) AS saturday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Sun' THEN order_id END) AS sunday_all_orders
+     , monday_roo_orders / NULLIF(monday_all_orders,0) AS monday_roo_ms
+     , tuesday_roo_orders / NULLIF(tuesday_all_orders,0) AS tuesday_roo_ms
+     , wednesday_roo_orders / NULLIF(wednesday_all_orders,0) AS wednesday_roo_ms
+     , thursday_roo_orders / NULLIF(thursday_all_orders,0) AS thursday_roo_ms
+     , friday_roo_orders / NULLIF(friday_all_orders,0) AS friday_roo_ms
+     , saturday_roo_orders / NULLIF(saturday_all_orders,0) AS saturday_roo_ms
+     , sunday_roo_orders / NULLIF(sunday_all_orders,0) AS sunday_roo_ms
+    -- WEEKLY LATE NIGHT MS
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'deliveroo' AND HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24) THEN ORDER_ID END) as roo_ln_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'uber eats' AND HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24)  THEN ORDER_ID END) as ue_ln_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'just eat' AND HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24)  THEN ORDER_ID END) as je_ln_orders
+     , COUNT(DISTINCT CASE WHEN HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24) THEN order_id END) AS all_ln_orders
+     , roo_ln_orders / NULLIF(all_ln_orders,0) AS roo_weekly_ln_ms
+     , ue_ln_orders / NULLIF(all_ln_orders,0) AS ue_weekly_ln_ms
+     , je_ln_orders / NULLIF(all_ln_orders,0) AS je_weekly_ln_ms
+    -- WEEKLY GTV MS
+     , SUM(CASE WHEN merchant_name = 'deliveroo' THEN GTV END) as roo_gtv
+    , SUM(CASE WHEN merchant_name = 'uber eats' THEN GTV END) as ue_gtv
+    , COALESCE(SUM(CASE WHEN merchant_name = 'just eat' THEN GTV END),0) as je_gtv
+    , SUM(GTV) AS all_gtv
+    , roo_gtv / NULLIF(all_gtv,0) AS roo_weekly_ms_gtv
+    , ue_gtv / NULLIF(all_gtv,0) AS ue_weekly_ms_gtv
+    , COALESCE(je_gtv / NULLIF(all_gtv,0),0) AS je_weekly_ms_gtv
+    -- WEEKLY GTV QSR MS
+    , SUM(CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as roo_qsr_gtv
+    , SUM(CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as ue_qsr_gtv
+    , COALESCE(SUM(CASE WHEN (merchant_name = 'just eat' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END),0) as je_qsr_gtv
+    , SUM(CASE WHEN restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king') THEN GTV END) as all_qsr_gtv
+    , roo_qsr_gtv / NULLIF((roo_qsr_gtv + ue_qsr_gtv + je_qsr_gtv),0) AS roo_qsr_weekly_ms_gtv
+    , ue_qsr_gtv / NULLIF((roo_qsr_gtv + ue_qsr_gtv + je_qsr_gtv),0) AS ue_qsr_weekly_ms_gtv
+    , je_qsr_gtv / NULLIF((roo_qsr_gtv + ue_qsr_gtv + je_qsr_gtv),0) AS je_qsr_weekly_ms_gtv
+    -- WEEKLY GTV nQSR MS
+    , SUM(CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as roo_nqsr_gtv
+    , SUM(CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as ue_nqsr_gtv
+    , COALESCE(SUM(CASE WHEN (merchant_name = 'just eat' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END),0) as je_nqsr_gtv
+    , SUM(CASE WHEN restaurant_name NOT IN ('mcdonald''s', 'kfc', 'burger king') THEN GTV END) as all_nqsr_gtv
+    , roo_nqsr_gtv / NULLIF((roo_nqsr_gtv + ue_nqsr_gtv + je_nqsr_gtv),0) AS roo_nqsr_weekly_ms_gtv
+    , ue_nqsr_gtv / NULLIF((roo_nqsr_gtv + ue_nqsr_gtv + je_nqsr_gtv),0) AS ue_nqsr_weekly_ms_gtv
+    , je_nqsr_gtv / NULLIF((roo_nqsr_gtv + ue_nqsr_gtv + je_nqsr_gtv),0) AS je_nqsr_weekly_ms_gtv
+
+FROM SCRATCH.COMPETITOR.FOX_INTELLIGENCE_ORDERS  AS fio
+     LEFT JOIN PRODUCTION.REFERENCE.ZONE_CITY_COUNTRY  AS zcc
+     ON fio.DELIVEROO_ZONE_CODE = zcc.ZONE_CODE
+
+WHERE TRUE
+  AND (DATE_TRUNC('week', fio."EMAIL_HOUR_TIMESTAMP") >= DATEADD(week, -31, DATE_TRUNC('week', current_date))
+    OR DATE_TRUNC('week', fio."EMAIL_HOUR_TIMESTAMP") = DATEADD(week, -52, DATE_TRUNC('week', current_date)))
+  AND DATE_TRUNC('week', email_hour_timestamp) < DATE_TRUNC('week', current_date)
+  AND fio.country = 'France'
+  AND UPPER(fio.merchant_name) IN ('DELIVEROO','UBER EATS','JUST EAT')
+
+GROUP BY 1,2
+ORDER BY 2,1 DESC
+;
+
+-------------------------------- BU LEVEL ---------------------------
+
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_ms_data_bu AS
+SELECT
+    DATE(DATE_TRUNC('week', email_hour_timestamp)) AS WEEK
+     , CASE
+    WHEN deliveroo_zone_code IN ('LYON','LCRC','LYNO','LSE','LNE','LOUP','LYSO','LYMO','TLS1','TSTO','TBLM','TBLA','TTF','MARS','MALO','MARB','MAGL','MARM',
+                                  'MARV','MTR','MTRC','MTRP','NC','NACS','VENC','ANTB','REN','RENS','TRS','TRJC','TRSC','LCWS','LVDA','RBTG','FACH','SEQD','CFD',
+                                   'CANN','DIJ','ANCY','BDX','BLBE','BME','BTPG','BBVO','BLOC','BCAR','BMJ','STRG','SIOL','SVML','NAT','NASH','NARV','GRE2','GREC',
+                                    'GREG','AIX1','AIX2') THEN 'Top Cities'
+    WHEN deliveroo_zone_code IN ('RMS','RMSN','NAC','NEMS','ROU','ORL','PTRS','ANG','LMS','ANCY','ANCS','AMS','METZ','LHV','BRST','TROY','BESA','MUL','ALBI',
+                                   'CAEN','LRC','LIMO','PAU','STE') THEN 'RFR Managed'
+    WHEN deliveroo_zone_code IN ('VLCN','AGEN','ANNE','ARG','ARRA','AVG','BAIL','BAY','BEAU','BEZI','BLOI','BOUM','CALA','CASS','CAU','CBRY','CHAT','CHAG',
+                                'CHOC','COLM','COMP','COUL','CREI','DALE','DUNK','EVRX','FTNB','FREY','GUIG','FEJO','LRSY','LAVA','LENS','WAZI','LGWY','LRNT',
+                                'LOUV','MLJO','MAUB','MEAU','MERU','MNTB','NIME','NOY','PERI','PERP','POMO','QMPR','RAMB','RFOR','ROUS','RUMY','SDVO','SNAZ',
+                                'SABO','TARB','THIO','TLN','TLN','TLN2','TORO','TULL','VAL','VANS') THEN 'RFR Unmanaged'
+    ELSE deliveroo_city
+    END AS CITY
+    -- WEEKLY MS
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'deliveroo' THEN ORDER_ID END) as roo_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'uber eats' THEN ORDER_ID END) as ue_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'just eat' THEN ORDER_ID END) as je_orders
+     , COUNT(DISTINCT order_id) AS all_orders
+     , roo_orders / NULLIF(all_orders,0) AS roo_weekly_ms
+     , ue_orders / NULLIF(all_orders,0) AS ue_weekly_ms
+     , je_orders / NULLIF(all_orders,0) AS je_weekly_ms
+    -- WEEKLY QSR MS
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as roo_qsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as ue_qsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'just eat' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as je_qsr_orders
+     , roo_qsr_orders / NULLIF((roo_qsr_orders + ue_qsr_orders + je_qsr_orders),0) AS roo_qsr_weekly_ms
+     , ue_qsr_orders / NULLIF((roo_qsr_orders + ue_qsr_orders + je_qsr_orders),0) AS ue_qsr_weekly_ms
+    -- WEEKLY nQSR MS
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as roo_nqsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as ue_nqsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'just eat' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as je_nqsr_orders
+     , roo_nqsr_orders / NULLIF((roo_nqsr_orders + ue_nqsr_orders + je_nqsr_orders),0) AS roo_nqsr_weekly_ms
+     , ue_nqsr_orders / NULLIF((roo_nqsr_orders + ue_nqsr_orders + je_nqsr_orders),0) AS ue_nqsr_weekly_ms
+    -- WEEKLY G3 MS
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('mcdonald''s')) THEN ORDER_ID END) as roo_mcdo_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('kfc')) THEN ORDER_ID END) as roo_kfc_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('burger king')) THEN ORDER_ID END) as roo_bk_orders
+     , COUNT(DISTINCT CASE WHEN (restaurant_name  IN ('mcdonald''s')) THEN ORDER_ID END) as all_mcdo_orders
+     , COUNT(DISTINCT CASE WHEN (restaurant_name  IN ('kfc')) THEN ORDER_ID END) as all_kfc_orders
+     , COUNT(DISTINCT CASE WHEN (restaurant_name  IN ('burger king')) THEN ORDER_ID END) as all_bk_orders
+     , roo_mcdo_orders / NULLIF(all_mcdo_orders,0) AS roo_mcdo_weekly_ms
+     , roo_kfc_orders / NULLIF(all_kfc_orders,0) AS roo_kfc_weekly_ms
+     , roo_bk_orders / NULLIF(all_bk_orders,0) AS roo_bk_weekly_ms
+    -- DAY OF WEEK
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Mon' THEN order_id END) AS monday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Tue' THEN order_id END) AS tuesday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Wed' THEN order_id END) AS wednesday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Thu' THEN order_id END) AS thursday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Fri' THEN order_id END) AS friday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Sat' THEN order_id END) AS saturday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Sun' THEN order_id END) AS sunday_roo_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Mon' THEN order_id END) AS monday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Tue' THEN order_id END) AS tuesday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Wed' THEN order_id END) AS wednesday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Thu' THEN order_id END) AS thursday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Fri' THEN order_id END) AS friday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Sat' THEN order_id END) AS saturday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Sun' THEN order_id END) AS sunday_all_orders
+     , monday_roo_orders / NULLIF(monday_all_orders,0) AS monday_roo_ms
+     , tuesday_roo_orders / NULLIF(tuesday_all_orders,0) AS tuesday_roo_ms
+     , wednesday_roo_orders / NULLIF(wednesday_all_orders,0) AS wednesday_roo_ms
+     , thursday_roo_orders / NULLIF(thursday_all_orders,0) AS thursday_roo_ms
+     , friday_roo_orders / NULLIF(friday_all_orders,0) AS friday_roo_ms
+     , saturday_roo_orders / NULLIF(saturday_all_orders,0) AS saturday_roo_ms
+     , sunday_roo_orders / NULLIF(sunday_all_orders,0) AS sunday_roo_ms
+    -- WEEKLY LATE NIGHT MS
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'deliveroo' AND HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24) THEN ORDER_ID END) as roo_ln_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'uber eats' AND HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24)  THEN ORDER_ID END) as ue_ln_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'just eat' AND HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24)  THEN ORDER_ID END) as je_ln_orders
+     , COUNT(DISTINCT CASE WHEN HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24) THEN order_id END) AS all_ln_orders
+     , roo_ln_orders / NULLIF(all_ln_orders,0) AS roo_weekly_ln_ms
+     , ue_ln_orders / NULLIF(all_ln_orders,0) AS ue_weekly_ln_ms
+     , je_ln_orders / NULLIF(all_ln_orders,0) AS je_weekly_ln_ms
+
+    -- WEEKLY GTV MS
+     , SUM(CASE WHEN merchant_name = 'deliveroo' THEN GTV END) as roo_gtv
+    , SUM(CASE WHEN merchant_name = 'uber eats' THEN GTV END) as ue_gtv
+    , COALESCE(SUM(CASE WHEN merchant_name = 'just eat' THEN GTV END),0) as je_gtv
+    , SUM(GTV) AS all_gtv
+    , roo_gtv / NULLIF(all_gtv,0) AS roo_weekly_ms_gtv
+    , ue_gtv / NULLIF(all_gtv,0) AS ue_weekly_ms_gtv
+    , COALESCE(je_gtv / NULLIF(all_gtv,0),0) AS je_weekly_ms_gtv
+    -- WEEKLY GTV QSR MS
+    , SUM(CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as roo_qsr_gtv
+    , SUM(CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as ue_qsr_gtv
+    , COALESCE(SUM(CASE WHEN (merchant_name = 'just eat' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END),0) as je_qsr_gtv
+    , SUM(CASE WHEN restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king') THEN GTV END) as all_qsr_gtv
+    , roo_qsr_gtv / NULLIF((roo_qsr_gtv + ue_qsr_gtv + je_qsr_gtv),0) AS roo_qsr_weekly_ms_gtv
+    , ue_qsr_gtv / NULLIF((roo_qsr_gtv + ue_qsr_gtv + je_qsr_gtv),0) AS ue_qsr_weekly_ms_gtv
+    , je_qsr_gtv / NULLIF((roo_qsr_gtv + ue_qsr_gtv + je_qsr_gtv),0) AS je_qsr_weekly_ms_gtv
+    -- WEEKLY GTV nQSR MS
+    , SUM(CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as roo_nqsr_gtv
+    , SUM(CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as ue_nqsr_gtv
+    , COALESCE(SUM(CASE WHEN (merchant_name = 'just eat' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END),0) as je_nqsr_gtv
+    , SUM(CASE WHEN restaurant_name NOT IN ('mcdonald''s', 'kfc', 'burger king') THEN GTV END) as all_nqsr_gtv
+    , roo_nqsr_gtv / NULLIF((roo_nqsr_gtv + ue_nqsr_gtv + je_nqsr_gtv),0) AS roo_nqsr_weekly_ms_gtv
+    , ue_nqsr_gtv / NULLIF((roo_nqsr_gtv + ue_nqsr_gtv + je_nqsr_gtv),0) AS ue_nqsr_weekly_ms_gtv
+    , je_nqsr_gtv / NULLIF((roo_nqsr_gtv + ue_nqsr_gtv + je_nqsr_gtv),0) AS je_nqsr_weekly_ms_gtv
+
+FROM SCRATCH.COMPETITOR.FOX_INTELLIGENCE_ORDERS  AS fio
+     LEFT JOIN PRODUCTION.REFERENCE.ZONE_CITY_COUNTRY  AS zcc
+     ON fio.DELIVEROO_ZONE_CODE = zcc.ZONE_CODE
+
+WHERE TRUE
+  AND (DATE_TRUNC('week', fio."EMAIL_HOUR_TIMESTAMP") >= DATEADD(week, -31, DATE_TRUNC('week', current_date))
+    OR DATE_TRUNC('week', fio."EMAIL_HOUR_TIMESTAMP") = DATEADD(week, -52, DATE_TRUNC('week', current_date)))
+  AND DATE_TRUNC('week', email_hour_timestamp) < DATE_TRUNC('week', current_date)
+  AND fio.country = 'France'
+  AND UPPER(fio.merchant_name) IN ('DELIVEROO','UBER EATS','JUST EAT')
+
+GROUP BY 1,2
+ORDER BY 2,1 DESC
+;
+
+-------------------------------- Total RFR LEVEL (Unmanaged + Managed) ---------------------------
+
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_ms_data_rfr AS
+SELECT
+    DATE(DATE_TRUNC('week', email_hour_timestamp)) AS WEEK
+     , CASE
+    WHEN deliveroo_zone_code IN ('RMS','RMSN','NAC','NEMS','ROU','ORL','PTRS','ANG','LMS','ANCY','ANCS','AMS','METZ','LHV','BRST','TROY','BESA','MUL','ALBI',
+                                   'CAEN','LRC','LIMO','PAU','STE','VLCN','AGEN','ANNE','ARG','ARRA','AVG','BAIL','BAY','BEAU','BEZI','BLOI','BOUM','CALA',
+                                 'CASS','CAU','CBRY','CHAT','CHAG', 'CHOC','COLM','COMP','COUL','CREI','DALE','DUNK','EVRX','FTNB','FREY','GUIG','FEJO',
+                                 'LRSY','LAVA','LENS','WAZI','LGWY','LRNT','LOUV','MLJO','MAUB','MEAU','MERU','MNTB','NIME','NOY','PERI','PERP','POMO',
+                                 'QMPR','RAMB','RFOR','ROUS','RUMY','SDVO','SNAZ','SABO','TARB','THIO','TLN','TLN','TLN2','TORO','TULL','VAL','VANS') THEN 'RFR Total'
+    ELSE deliveroo_city
+    END AS CITY
+    -- WEEKLY MS
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'deliveroo' THEN ORDER_ID END) as roo_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'uber eats' THEN ORDER_ID END) as ue_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'just eat' THEN ORDER_ID END) as je_orders
+     , COUNT(DISTINCT order_id) AS all_orders
+     , roo_orders / NULLIF(all_orders,0) AS roo_weekly_ms
+     , ue_orders / NULLIF(all_orders,0) AS ue_weekly_ms
+     , je_orders / NULLIF(all_orders,0) AS je_weekly_ms
+    -- WEEKLY QSR MS
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as roo_qsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as ue_qsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'just eat' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as je_qsr_orders
+     , roo_qsr_orders / NULLIF((roo_qsr_orders + ue_qsr_orders + je_qsr_orders),0) AS roo_qsr_weekly_ms
+     , ue_qsr_orders / NULLIF((roo_qsr_orders + ue_qsr_orders + je_qsr_orders),0) AS ue_qsr_weekly_ms
+    -- WEEKLY nQSR MS
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as roo_nqsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as ue_nqsr_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'just eat' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN ORDER_ID END) as je_nqsr_orders
+     , roo_nqsr_orders / NULLIF((roo_nqsr_orders + ue_nqsr_orders + je_nqsr_orders),0) AS roo_nqsr_weekly_ms
+     , ue_nqsr_orders / NULLIF((roo_nqsr_orders + ue_nqsr_orders + je_nqsr_orders),0) AS ue_nqsr_weekly_ms
+    -- WEEKLY G3 MS
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('mcdonald''s')) THEN ORDER_ID END) as roo_mcdo_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('kfc')) THEN ORDER_ID END) as roo_kfc_orders
+     , COUNT(DISTINCT CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('burger king')) THEN ORDER_ID END) as roo_bk_orders
+     , COUNT(DISTINCT CASE WHEN (restaurant_name  IN ('mcdonald''s')) THEN ORDER_ID END) as all_mcdo_orders
+     , COUNT(DISTINCT CASE WHEN (restaurant_name  IN ('kfc')) THEN ORDER_ID END) as all_kfc_orders
+     , COUNT(DISTINCT CASE WHEN (restaurant_name  IN ('burger king')) THEN ORDER_ID END) as all_bk_orders
+     , roo_mcdo_orders / NULLIF(all_mcdo_orders,0) AS roo_mcdo_weekly_ms
+     , roo_kfc_orders / NULLIF(all_kfc_orders,0) AS roo_kfc_weekly_ms
+     , roo_bk_orders / NULLIF(all_bk_orders,0) AS roo_bk_weekly_ms
+    -- DAY OF WEEK
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Mon' THEN order_id END) AS monday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Tue' THEN order_id END) AS tuesday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Wed' THEN order_id END) AS wednesday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Thu' THEN order_id END) AS thursday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Fri' THEN order_id END) AS friday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Sat' THEN order_id END) AS saturday_roo_orders
+     , COUNT(CASE WHEN merchant_name = 'deliveroo' AND DAYNAME(email_hour_timestamp) = 'Sun' THEN order_id END) AS sunday_roo_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Mon' THEN order_id END) AS monday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Tue' THEN order_id END) AS tuesday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Wed' THEN order_id END) AS wednesday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Thu' THEN order_id END) AS thursday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Fri' THEN order_id END) AS friday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Sat' THEN order_id END) AS saturday_all_orders
+     , COUNT(CASE WHEN DAYNAME(email_hour_timestamp) = 'Sun' THEN order_id END) AS sunday_all_orders
+     , monday_roo_orders / NULLIF(monday_all_orders,0) AS monday_roo_ms
+     , tuesday_roo_orders / NULLIF(tuesday_all_orders,0) AS tuesday_roo_ms
+     , wednesday_roo_orders / NULLIF(wednesday_all_orders,0) AS wednesday_roo_ms
+     , thursday_roo_orders / NULLIF(thursday_all_orders,0) AS thursday_roo_ms
+     , friday_roo_orders / NULLIF(friday_all_orders,0) AS friday_roo_ms
+     , saturday_roo_orders / NULLIF(saturday_all_orders,0) AS saturday_roo_ms
+     , sunday_roo_orders / NULLIF(sunday_all_orders,0) AS sunday_roo_ms
+    -- WEEKLY LATE NIGHT MS
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'deliveroo' AND HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24) THEN ORDER_ID END) as roo_ln_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'uber eats' AND HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24)  THEN ORDER_ID END) as ue_ln_orders
+     , COUNT(DISTINCT CASE WHEN merchant_name = 'just eat' AND HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24)  THEN ORDER_ID END) as je_ln_orders
+     , COUNT(DISTINCT CASE WHEN HOUR(email_hour_timestamp) IN (0, 1, 2, 3, 4, 5, 6, 23, 24) THEN order_id END) AS all_ln_orders
+     , roo_ln_orders / NULLIF(all_ln_orders,0) AS roo_weekly_ln_ms
+     , ue_ln_orders / NULLIF(all_ln_orders,0) AS ue_weekly_ln_ms
+     , je_ln_orders / NULLIF(all_ln_orders,0) AS je_weekly_ln_ms
+
+    -- WEEKLY GTV MS
+     , SUM(CASE WHEN merchant_name = 'deliveroo' THEN GTV END) as roo_gtv
+    , SUM(CASE WHEN merchant_name = 'uber eats' THEN GTV END) as ue_gtv
+    , COALESCE(SUM(CASE WHEN merchant_name = 'just eat' THEN GTV END),0) as je_gtv
+    , SUM(GTV) AS all_gtv
+    , roo_gtv / NULLIF(all_gtv,0) AS roo_weekly_ms_gtv
+    , ue_gtv / NULLIF(all_gtv,0) AS ue_weekly_ms_gtv
+    , COALESCE(je_gtv / NULLIF(all_gtv,0),0) AS je_weekly_ms_gtv
+    -- WEEKLY GTV QSR MS
+    , SUM(CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as roo_qsr_gtv
+    , SUM(CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as ue_qsr_gtv
+    , COALESCE(SUM(CASE WHEN (merchant_name = 'just eat' AND restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END),0) as je_qsr_gtv
+    , SUM(CASE WHEN restaurant_name  IN ('mcdonald''s', 'kfc', 'burger king') THEN GTV END) as all_qsr_gtv
+    , roo_qsr_gtv / NULLIF((roo_qsr_gtv + ue_qsr_gtv + je_qsr_gtv),0) AS roo_qsr_weekly_ms_gtv
+    , ue_qsr_gtv / NULLIF((roo_qsr_gtv + ue_qsr_gtv + je_qsr_gtv),0) AS ue_qsr_weekly_ms_gtv
+    , je_qsr_gtv / NULLIF((roo_qsr_gtv + ue_qsr_gtv + je_qsr_gtv),0) AS je_qsr_weekly_ms_gtv
+    -- WEEKLY GTV nQSR MS
+    , SUM(CASE WHEN (merchant_name = 'deliveroo' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as roo_nqsr_gtv
+    , SUM(CASE WHEN (merchant_name = 'uber eats' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END) as ue_nqsr_gtv
+    , COALESCE(SUM(CASE WHEN (merchant_name = 'just eat' AND restaurant_name  NOT IN ('mcdonald''s', 'kfc', 'burger king')) THEN GTV END),0) as je_nqsr_gtv
+    , SUM(CASE WHEN restaurant_name NOT IN ('mcdonald''s', 'kfc', 'burger king') THEN GTV END) as all_nqsr_gtv
+    , roo_nqsr_gtv / NULLIF((roo_nqsr_gtv + ue_nqsr_gtv + je_nqsr_gtv),0) AS roo_nqsr_weekly_ms_gtv
+    , ue_nqsr_gtv / NULLIF((roo_nqsr_gtv + ue_nqsr_gtv + je_nqsr_gtv),0) AS ue_nqsr_weekly_ms_gtv
+    , je_nqsr_gtv / NULLIF((roo_nqsr_gtv + ue_nqsr_gtv + je_nqsr_gtv),0) AS je_nqsr_weekly_ms_gtv
+
+FROM SCRATCH.COMPETITOR.FOX_INTELLIGENCE_ORDERS  AS fio
+     LEFT JOIN PRODUCTION.REFERENCE.ZONE_CITY_COUNTRY  AS zcc
+     ON fio.DELIVEROO_ZONE_CODE = zcc.ZONE_CODE
+
+WHERE TRUE
+  AND (DATE_TRUNC('week', fio."EMAIL_HOUR_TIMESTAMP") >= DATEADD(week, -31, DATE_TRUNC('week', current_date))
+    OR DATE_TRUNC('week', fio."EMAIL_HOUR_TIMESTAMP") = DATEADD(week, -52, DATE_TRUNC('week', current_date)))
+  AND DATE_TRUNC('week', email_hour_timestamp) < DATE_TRUNC('week', current_date)
+  AND fio.country = 'France'
+  AND UPPER(fio.merchant_name) IN ('DELIVEROO','UBER EATS','JUST EAT')
+
+GROUP BY 1,2
+ORDER BY 2,1 DESC
+;
+
+-------------------------------- II - ORDERS DATA --------------------------
+
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_orders_data AS
+SELECT
+    DATE(DATE_TRUNC('week', order_date)) AS week
+     , zone_code AS zone
+    -- OV
+     , COUNT(*) as ov_total
+    -- MEAL CARD
+     , COALESCE(SUM(IFF(o.payment_card_type IN ('SWILE','SODEXO','EDENRED','APETIZ','UP'),1,0)),0) as meal_card_total_ov
+    -- QSR/nQSR
+     , COUNT(CASE WHEN UPPER(o.brand_rx_segmentation) IN ('KFC', 'MCDONALD''S', 'BURGER KING') THEN id END) AS qsr_ov
+     , ov_total - qsr_ov AS nqsr_ov
+     , COUNT(CASE WHEN UPPER(o.brand_rx_segmentation) IN ('KFC') THEN id END) AS kfc_ov
+     , COUNT(CASE WHEN UPPER(o.brand_rx_segmentation) IN ('MCDONALD''S') THEN id END) AS mcdo_ov
+     , COUNT(CASE WHEN UPPER(o.brand_rx_segmentation) IN ('BURGER KING') THEN id END) AS bk_ov
+    -- PLUS ORDERS
+     , COUNT(CASE WHEN o.order_membership = 'Plus' THEN id END) AS plus_ov
+     , COUNT(DISTINCT CASE WHEN o.order_membership = 'Plus' THEN o.user_id END) AS active_plus_users
+    -- MARKETER ORDERS
+     , COUNT(CASE WHEN o.is_marketer_order THEN id END) AS marketer_ov
+     , COUNT(DISTINCT CASE WHEN o.is_marketer_order THEN o.restaurant_id END) AS marketer_rx
+     , COUNT(CASE WHEN (o.is_marketer_order AND UPPER(o.brand_rx_segmentation) IN ('KFC', 'MCDONALD''S', 'BURGER KING')) THEN id END) AS qsr_marketer_ov
+    -- BOGOF ORDERS
+     , COUNT(CASE WHEN ARRAY_CONTAINS('BOGOF'::variant, (pol.promotions_list)) THEN id END) AS bogof_ov
+     , COUNT(DISTINCT CASE WHEN ARRAY_CONTAINS('BOGOF'::variant, (pol.promotions_list)) THEN o.restaurant_id END) AS bogof_rx
+    -- FREE DELIVERY
+     , COUNT(CASE WHEN (ARRAY_CONTAINS('Free_Delivery_Marketplace'::variant, (pol.promotions_list)) OR ARRAY_CONTAINS('Free_Delivery_Core'::variant, (pol.promotions_list))) THEN id END) AS free_delivery_ov
+    -- NUX
+     , COUNT(CASE WHEN ARRAY_CONTAINS('NUX_Free_Delivery'::variant, (pol.promotions_list))  THEN id END) AS nux_ov
+    -- VOUCHER
+     , COUNT(CASE WHEN (o.marketing_debit_type LIKE 'marketing_action_link' OR o.marketing_debit_type = 'voucher') THEN id END) AS incentivised_ov
+    -- EXCLUSIVITY
+     , COUNT(CASE WHEN rwc.sf_exclusivity_type = 'Exclusive' THEN id END) AS exclusive_partners_ov
+     , COUNT(CASE WHEN rwc.sf_exclusivity_type = 'Preferred Partner' THEN id END) AS preferred_partners_ov
+     , ov_total - exclusive_partners_ov - preferred_partners_ov AS non_exclusive_partners_ov
+     , COUNT(DISTINCT CASE WHEN rwc.status NOT IN ('DISABLED','DELETED') THEN rwc.restaurant_id END) AS rx_supply
+     , COUNT(DISTINCT CASE WHEN rwc.sf_exclusivity_type = 'Exclusive' AND rwc.status NOT IN ('DISABLED','DELETED') THEN rwc.RESTAURANT_ID END) AS exclusive_partner_supply
+     , COUNT(DISTINCT CASE WHEN rwc.sf_exclusivity_type = 'Preferred Partner' AND rwc.status NOT IN ('DISABLED','DELETED') THEN rwc.RESTAURANT_ID END) AS preferred_partner_supply
+     , COUNT(DISTINCT CASE WHEN rwc.status NOT IN ('DISABLED','DELETED') THEN rwc.restaurant_id END) - exclusive_partner_supply - preferred_partner_supply AS non_exclusive_partners
+    -- WTPT>5
+     , COUNT(CASE WHEN o.wait_time_past_target > 5 THEN o.id END) AS wtpt_5_ov
+    -- NC
+     , COUNT(CASE WHEN o.ORDER_RANK_USER = 1 THEN o.id END) AS nc_ov
+    -- AOF
+     , COUNT(CASE WHEN o.ORDER_RANK_USER > 1 THEN o.ID END) AS aof_num
+     , COUNT(DISTINCT CASE WHEN o.ORDER_RANK_USER > 1 THEN o.USER_ID END) AS aof_den
+    -- WAR
+     , SUM(LEAST(o.wait_time_past_target,180)) AS wait_time_past_target_time_mins_sum
+     , COUNT(o.wait_time_past_target) AS wait_time_past_target_time_cnt
+
+FROM PRODUCTION.denormalised.orders AS o
+     LEFT JOIN production.miscellaneous.promotions_order_level AS pol
+     ON o.ID = pol.order_id
+     LEFT JOIN production.reference.restaurant_with_company AS rwc
+     ON o.restaurant_id = rwc.restaurant_id
+
+
+WHERE TRUE
+  AND o.country_name = 'France'
+  AND o.status = 'DELIVERED'
+  AND o.order_type != 'REDELIVERY'
+  AND (DATE_TRUNC('week', o.order_date) >= DATEADD(week, -31, DATE_TRUNC('week', current_date))
+    OR DATE_TRUNC('week', o.order_date) = DATEADD(week, -52, DATE_TRUNC('week', current_date)))
+  AND DATE_TRUNC('week', o.order_date) < DATE_TRUNC('week', current_date)
+
+GROUP BY 1,2
+ORDER BY 2,1
+;
+
+-------------------------------- III - VOUCHERS DATA --------------------------
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_vouchers_data AS
+SELECT
+    DATE(DATE_TRUNC('week', dc.credit_given_at)) AS week
+     , dc.zone_code AS zone
+     , COUNT(DISTINCT CASE WHEN dc.voucher_step = 1 THEN dc.credit_id END) AS voucher_redeemed
+     , COUNT(DISTINCT CASE WHEN dd.voucher_step = 1 THEN dd.debit_id END) AS voucher_debited
+
+FROM production.DENORMALISED.DENORMALISED_CREDIT AS dc
+     LEFT JOIN PRODUCTION.DENORMALISED.DENORMALISED_DEBIT AS dd
+     ON dc.credit_id = dd.credit_id
+WHERE TRUE
+  AND (DATE_TRUNC('week', dc.credit_given_at) >= DATEADD(week, -31, DATE_TRUNC('week', current_date))
+    OR DATE_TRUNC('week', dc.credit_given_at) = DATEADD(week, -52, DATE_TRUNC('week', current_date)))
+  AND DATE_TRUNC('week', dc.credit_given_at) < DATE_TRUNC('week', current_date)
+
+  AND dc.voucher_country_name = 'France'
+  AND dc.reason = 'voucher'
+  AND dc.category = 'marketing'
+  AND UPPER(dc.voucher_name) ILIKE '%FLOODING%'
+
+GROUP BY 1,2
+HAVING zone IS NOT NULL
+ORDER BY 1 DESC
+;
+
+
+-------------------------------- IV - SESSIONS DATA --------------------------
+
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_sessions_data AS
+SELECT
+    DATE_TRUNC('week', DATE_KEY_LOCAL) AS week,
+    zcc.zone_code  AS zone,
+    COALESCE(SUM(CASE WHEN consumer_sessions."NEW_CUSTOMER" THEN 0 ELSE 1 END),0) AS sessions_ec,
+    COALESCE(SUM(CASE WHEN (consumer_sessions."IS_CONVERTED_SESSION") AND ((CASE WHEN consumer_sessions."NEW_CUSTOMER"  THEN 1 ELSE 0 END) = 0) THEN 1  ELSE NULL END), 0) AS ec_num,
+    COALESCE(SUM(CASE WHEN consumer_sessions."NEW_CUSTOMER"  THEN 1  ELSE 0 END), 0) AS sessions_nc,
+    COALESCE(SUM(CASE WHEN (consumer_sessions."IS_CONVERTED_SESSION") AND (consumer_sessions."NEW_CUSTOMER") THEN 1  ELSE NULL END), 0) AS nc_num
+
+FROM production.SESSIONS.CONSUMER_SESSIONS_COMBINED AS consumer_sessions
+     JOIN production.reference.zone_city_country AS zcc
+     ON consumer_sessions.zone_code = zcc.zone_code
+WHERE TRUE
+  AND (DATE_TRUNC('week', DATE_KEY_LOCAL) >= DATEADD(week, -31, DATE_TRUNC('week', current_date))
+    OR DATE_TRUNC('week', DATE_KEY_LOCAL) = DATEADD(week, -52, DATE_TRUNC('week', current_date)))
+  AND DATE_TRUNC('week', DATE_KEY_LOCAL) < DATE_TRUNC('week', current_date)
+  AND consumer_sessions.country = 'France'
+
+GROUP BY 1,2
+ORDER BY 1,2
+;
+
+
+-------------------------------- V - OPS DATA --------------------------
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_ops_data AS
+SELECT
+    DATE_TRUNC('week', START_OF_PERIOD_LOCAL) AS week
+     , zone_code  AS zone
+    -- RSR
+     , SUM(SUM_RSR_NOT_VISIBLE) rsr_not_visible
+     , SUM(SUM_ASAP_RESTAURANTS) asap_rx
+     , SUM(cnt_sessions) sessions_count
+    -- AVG RX SEEN
+     , COALESCE( NULLIF((COALESCE(asap_rx, 0)),0) / NULLIF((COALESCE(sessions_count, 0)),0) ,0) AS avg_asap_rx
+
+FROM production.AGGREGATE.AGG_ZONE_DELIVERY_METRICS_HOURLY
+WHERE TRUE
+  AND COUNTRY_NAME = 'France'
+  AND (DATE_TRUNC('week', START_OF_PERIOD_LOCAL) >= DATEADD(week, -31, DATE_TRUNC('week', current_date))
+    OR DATE_TRUNC('week', START_OF_PERIOD_LOCAL) = DATEADD(week, -52, DATE_TRUNC('week', current_date)))
+  AND DATE_TRUNC('week', START_OF_PERIOD_LOCAL) < DATE_TRUNC('week', current_date)
+GROUP BY 1,2
+;
+
+-------------------------------- VI - COMP INTEL DATA --------------------------
+
+CREATE OR REPLACE TEMP TABLE scratch.REFERENCE.tmp_rx_promoted AS
+SELECT
+    DATE_TRUNC('week', cfr.recorded_at_local) AS week
+     , dz.zone_code AS zone
+     , COUNT(DISTINCT CASE WHEN (UPPER(cfr.status ) = UPPER('ONLINE') AND UPPER(cfr.source) = 'DELIVEROO') THEN cfr.restaurant_src_id  ELSE NULL END) AS roo_rx_promoted
+     , COUNT(DISTINCT CASE WHEN (UPPER(cfr.status ) = UPPER('ONLINE') AND UPPER(cfr.source) = 'UBER') THEN cfr.restaurant_src_id  ELSE NULL END) AS ue_rx_promoted
+
+FROM PRODUCTION.COMPETITOR.FACT_RESTAURANTS AS cfr
+     LEFT JOIN production.competitor.dim_restaurants AS dr
+     ON (cfr.restaurant_key) = (dr.restaurant_key)
+     LEFT JOIN production.competitor.dim_zones AS dz
+     ON (dr.zone_key_latest) = (dz.zone_key)
+
+WHERE TRUE
+  AND (DATE_TRUNC('week', cfr.recorded_at_local) >= DATEADD(week, -31, DATE_TRUNC('week', current_date))
+    OR DATE_TRUNC('week', cfr.recorded_at_local) = DATEADD(week, -52, DATE_TRUNC('week', current_date)))
+  AND DATE_TRUNC('week', cfr.recorded_at_local) < DATE_TRUNC('week', current_date)
+  AND UPPER(cfr.source) IN ('DELIVEROO', 'UBER')
+  AND UPPER(dr.country_name) = 'FRANCE'
+  AND cfr.promotions != ''
+
+GROUP BY 1,2
+ORDER BY 1 DESC
+;
+
+CREATE OR REPLACE TEMP TABLE scratch.REFERENCE.tmp_all_rx AS
+SELECT
+    DATE_TRUNC('week', cfr.recorded_at_local) AS week
+     , dz.zone_code AS zone
+     , COUNT(DISTINCT CASE WHEN (UPPER(cfr.status ) = UPPER('ONLINE') AND UPPER(cfr.source) = 'DELIVEROO') THEN cfr.restaurant_src_id  ELSE NULL END) AS roo_rx
+     , COUNT(DISTINCT CASE WHEN (UPPER(cfr.status ) = UPPER('ONLINE') AND UPPER(cfr.source) = 'UBER') THEN cfr.restaurant_src_id  ELSE NULL END) AS ue_rx
+
+FROM PRODUCTION.COMPETITOR.FACT_RESTAURANTS AS cfr
+     LEFT JOIN production.competitor.dim_restaurants AS dr
+     ON (cfr.restaurant_key) = (dr.restaurant_key)
+     LEFT JOIN production.competitor.dim_zones AS dz
+     ON (dr.zone_key_latest) = (dz.zone_key)
+
+WHERE TRUE
+  AND (DATE_TRUNC('week', cfr.recorded_at_local) >= DATEADD(week, -31, DATE_TRUNC('week', current_date))
+    OR DATE_TRUNC('week', cfr.recorded_at_local) = DATEADD(week, -52, DATE_TRUNC('week', current_date)))
+  AND DATE_TRUNC('week', cfr.recorded_at_local) < DATE_TRUNC('week', current_date)
+  AND UPPER(cfr.source) IN ('DELIVEROO', 'UBER')
+  AND UPPER(dr.country_name) = 'FRANCE'
+
+GROUP BY 1,2
+ORDER BY 1 DESC
+;
+
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_comp_intel_data AS
+SELECT
+    ar.week AS week
+     , ar.zone AS zone
+-- RX PROMOTED
+     , SUM(rp.roo_rx_promoted) AS rx_promo_roo
+     , SUM(rp.ue_rx_promoted) AS rx_promo_ue
+-- RX SEEN
+     , SUM(ar.roo_rx) AS rx_seen_roo
+     , SUM(ar.ue_rx) AS rx_seen_ue
+-- RATIO
+     , rx_promo_roo / NULLIF(rx_seen_roo,0) AS rx_promo_perc_roo
+     , rx_promo_ue / NULLIF(rx_seen_ue,0) AS rx_promo_perc_ue
+
+FROM scratch.REFERENCE.tmp_all_rx ar
+     LEFT JOIN scratch.REFERENCE.tmp_rx_promoted rp
+     ON ar.week = rp.week
+         AND ar.zone = rp.zone
+
+GROUP BY 1,2
+ORDER BY 2,1
+;
+
+-------------------------------- VII - SALES DATA --------------------------
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_sales_data_quarter AS
+SELECT
+    ignite.zone_code AS zone
+     , COUNT(DISTINCT CASE WHEN ignite.opp_closed_won_date IS NOT NULL THEN ignite.account_id else null end) AS rx_signed
+     , COUNT(DISTINCT CASE WHEN (ignite.opp_closed_won_date IS NOT NULL AND ignite.first_order_date IS NOT NULL) THEN ignite.account_id else null end) AS rx_with_orders
+FROM PRODUCTION.DENORMALISED.restaurant_lifetime_ignite  AS ignite
+WHERE TRUE
+  AND (ignite.opp_closed_won_date) >= DATE_TRUNC('quarter', current_date)
+  AND UPPER(ignite.opp_stage) = 'CLOSED WON'
+  AND UPPER(ignite.RESTAURANT_COUNTRY) = 'FRANCE'
+
+GROUP BY 1
+ORDER BY 1
+;
+
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_sales_data_week AS
+SELECT
+    DATE(DATE_TRUNC('week',ignite.opp_closed_won_date)) AS week
+     , ignite.zone_code AS zone
+     , COUNT(DISTINCT CASE WHEN ignite.opp_closed_won_date IS NOT NULL THEN ignite.account_id else null end) AS rx_signed
+     , COUNT(DISTINCT CASE WHEN (ignite.opp_closed_won_date IS NOT NULL AND ignite.first_order_date IS NOT NULL) THEN ignite.account_id else null end) AS rx_with_orders
+
+FROM PRODUCTION.DENORMALISED.restaurant_lifetime_ignite AS ignite
+WHERE TRUE
+  AND (DATE_TRUNC('week', ignite.opp_closed_won_date) >= DATEADD(week, -31, DATE_TRUNC('week', current_date))
+    OR DATE_TRUNC('week', ignite.opp_closed_won_date) = DATEADD(week, -52, DATE_TRUNC('week', current_date)))
+  AND DATE_TRUNC('week', ignite.opp_closed_won_date) < DATE_TRUNC('week', current_date)
+
+  AND UPPER(ignite.opp_stage) = 'CLOSED WON'
+  AND UPPER(ignite.RESTAURANT_COUNTRY) = 'FRANCE'
+
+GROUP BY 1,2
+ORDER BY 2,1
+;
+
+-------------------------------- VIII - RX SUPPLY DATA --------------------------
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_rx_supply_data AS
+SELECT
+    DATE_TRUNC('week', date) AS week
+     , rwc.restaurant_zone_code AS zone
+     , COUNT(DISTINCT CASE WHEN (rwc.is_live AND UPPER(rwc.sf_global_brand ) IN ('KFC', 'MCDONALD''S', 'BURGER KING')) THEN rwc.restaurant_id END) AS g3_supply
+     , COUNT(DISTINCT CASE WHEN (rwc.is_live AND is_convenience_groceries) THEN rwc.restaurant_id END) AS odc_supply
+
+FROM PRODUCTION.reference.historic_restaurant_with_company  AS rwc
+WHERE TRUE
+  AND (DATE_TRUNC('week', date) >= DATEADD(week, -31, DATE_TRUNC('week', current_date))
+    OR DATE_TRUNC('week', date) = DATEADD(week, -52, DATE_TRUNC('week', current_date)))
+  AND DATE_TRUNC('week', date) < DATE_TRUNC('week', current_date)
+  AND rwc.restaurant_country_name = 'France'
+GROUP BY 1,2
+;
+
+-------------------------------- IX - PLUS DATA --------------------------
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_new_plus_data AS
+WITH cte_plus_subscriber AS(
+    SELECT
+        subscriber_user_id
+         , date_key
+         , iff(z.zone_code is null,  u.zone_code, z.zone_code) AS subscriber_zone
+         , signup_date
+         , paying_date
+         , cancellation_date
+         , subscription_status_by_day
+         , LAG(subscription_status_by_day) OVER (PARTITION BY subscriber_user_id ORDER BY date_key) AS subscription_status_previous_day
+    FROM production.miscellaneous.subscription_analytics_with_orders s
+         LEFT JOIN production.denormalised.orders o
+         ON s.subscriber_user_id = o.user_id
+             AND DATEDIFF('day',o.order_date,s.date_key) BETWEEN 1 AND 28
+             AND (DATE_TRUNC('week', o.order_date) >= DATEADD(week, -31, DATE_TRUNC('week', current_date))
+                 OR DATE_TRUNC('week', o.order_date) = DATEADD(week, -52, DATE_TRUNC('week', current_date)))
+             AND DATE_TRUNC('week', o.order_date) < DATE_TRUNC('week', current_date)
+             AND o.status = 'DELIVERED'
+             AND s.country = 'France'
+             AND o.order_type NOT IN ('REDELIVERY', 'PARTNER_ORDER')
+             AND o.deliveroo_plus_order
+         LEFT JOIN production.reference.user_analytics u
+         ON s.subscriber_user_id = u.user_id
+         LEFT JOIN production.reference.zone_city_country as z
+         ON u.zone_id = z.zone_id
+    GROUP BY 1,2,3,4,5,6,7
+)
+SELECT
+    DATE_TRUNC('week', date_key) as week
+     , subscriber_zone as zone
+     , COUNT(DISTINCT CASE WHEN date_key = signup_date THEN subscriber_user_id END) AS new_plus_subscribers
+FROM cte_plus_subscriber
+GROUP BY 1,2
+;
+
+-------------------------------- X - B10 DATA --------------------------
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_b10_data AS
+SELECT
+    DATE(DATE_TRUNC('week', order_date)) AS week
+     , zone_code AS zone
+     , SUM(IFF(o.is_b10_omdnr,1,0)
+    +IFF(o.is_b10_cancellation,1,0)
+    +IFF(o.is_b10_rejection,1,0)
+    --+IFF(o.IS_B10_amended_order,1,0)
+    +IFF(o.IS_B10_spoiled_food,1,0)
+    +IFF(o.IS_B10_UNACCEPTABLE_LATE_5_TO_15 OR o.IS_B10_UNACCEPTABLE_LATE_15_PLUS OR o.is_B10_unacceptable_late,1,0)
+    +IFF(o.is_b10_missing_item,1,0)) AS cnt_b10_incidence
+     , SUM(IFF(o.IS_B10_UNACCEPTABLE_LATE_5_TO_15 OR o.IS_B10_UNACCEPTABLE_LATE_15_PLUS OR o.is_B10_unacceptable_late,1,0)) AS cnt_b10_orders_unacceptable_lates
+     , SUM(IFF(o.is_b10_rejection,1,0)) AS cnt_b10_orders_rejections
+     , SUM(IFF(o.is_b10_omdnr,1,0)) AS cnt_b10_orders_omdnr
+     , SUM(IFF(o.IS_B10_spoiled_food,1,0)) AS cnt_b10_orders_spoiled_food
+     , SUM(IFF(o.is_b10_cancellation,1,0)) AS cnt_b10_orders_cancellations
+     , SUM(IFF(o.is_b10_missing_item,1,0)) AS cnt_b10_orders_missing_items
+     , SUM(IFF(o.is_b10_denominator,1,0)) as cnt_b10_orders_denominator
+
+FROM PRODUCTION.denormalised.orders AS o
+WHERE TRUE
+  AND o.country_name = 'France'
+  AND o.order_type != 'REDELIVERY'
+  AND (DATE_TRUNC('week', o.order_date) >= DATEADD(week, -31, DATE_TRUNC('week', current_date))
+    OR DATE_TRUNC('week', o.order_date) = DATEADD(week, -52, DATE_TRUNC('week', current_date)))
+  AND DATE_TRUNC('week', o.order_date) < DATE_TRUNC('week', current_date)
+
+GROUP BY 1,2
+ORDER BY 2,1
+;
+
+
+-------------------------- CREATING FINAL AGG TABLES --------------------------
+
+-- FINAL TABLE 1 WITH ALL THE METRICS AT ZONE LEVEL
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_zone_detailed_metrics AS
+SELECT
+    od.week
+     , zcc.country_name AS country
+     , zcc.city_name AS city
+     , od.zone
+     , od.ov_total
+     , od.meal_card_total_ov
+     , od.qsr_ov
+     , od.nqsr_ov
+     , od.plus_ov
+     , od.marketer_ov
+     , od.marketer_rx
+     , od.qsr_marketer_ov
+     , od.bogof_ov
+     , od.bogof_rx
+     , od.free_delivery_ov
+     , od.nux_ov
+     , od.incentivised_ov
+     , (od.marketer_ov + od.bogof_ov + od.free_delivery_ov + od.nux_ov + od.incentivised_ov) AS total_promo_ov
+     , od.exclusive_partners_ov
+     , od.preferred_partners_ov
+     , od.non_exclusive_partners_ov
+     , od.rx_supply
+     , od.exclusive_partner_supply
+     , od.preferred_partner_supply
+     , od.non_exclusive_partners
+     , b10.cnt_b10_incidence AS cnt_b10_orders
+     , b10.cnt_b10_orders_denominator
+     , b10.cnt_b10_orders_unacceptable_lates
+     , b10.cnt_b10_orders_missing_items
+     , b10.cnt_b10_orders_rejections
+     , b10.cnt_b10_orders_omdnr
+     , b10.cnt_b10_orders_cancellations
+     , b10.cnt_b10_orders_spoiled_food
+     , NULL AS cnt_b10_orders_amended
+     , od.wtpt_5_ov
+     , od.nc_ov
+     , od.aof_num
+     , od.aof_den
+     , od.wait_time_past_target_time_mins_sum
+     , od.wait_time_past_target_time_cnt
+
+     , sd.sessions_ec
+     , sd.sessions_nc
+     , sd.ec_num
+     , sd.nc_num
+
+     , ops.rsr_not_visible
+     , ops.asap_rx
+     , ops.sessions_count
+
+     , cid.rx_promo_roo
+     , cid.rx_promo_ue
+     , cid.rx_seen_roo
+     , cid.rx_seen_ue
+
+     , od.active_plus_users AS plus_subscribers
+     , npd.new_plus_subscribers
+
+     , salesq.rx_signed AS rx_signed_q
+     , salesq.rx_with_orders AS rx_with_orders_q
+     , salesw.rx_signed AS rx_signed_w
+     , salesw.rx_with_orders AS rx_with_orders_w
+
+     , rsd.g3_supply
+     , rsd.odc_supply
+
+     , vd.voucher_redeemed
+     , vd.voucher_debited
+
+     , CASE WHEN od.kfc_ov != 0 THEN 1 ELSE 0 END AS kfc_present
+     , CASE WHEN od.mcdo_ov != 0 THEN 1 ELSE 0 END AS mcdo_present
+     , CASE WHEN od.bk_ov != 0 THEN 1 ELSE 0 END AS bk_present
+
+FROM scratch.reference.tmp_orders_data AS od
+     LEFT JOIN production.REFERENCE.ZONE_CITY_COUNTRY AS zcc
+     ON od.zone = zcc.zone_code
+     LEFT JOIN scratch.reference.tmp_sessions_data AS sd
+     ON od.week = sd.week
+         AND od.zone = sd.zone
+     LEFT JOIN scratch.reference.tmp_ops_data AS ops
+     ON od.week = ops.week
+         AND od.zone = ops.zone
+     LEFT JOIN scratch.reference.tmp_comp_intel_data AS cid
+     ON od.week = cid.week
+         AND od.zone = cid.zone
+     LEFT JOIN scratch.reference.tmp_new_plus_data AS npd
+     ON od.week = npd.week
+         AND od.zone = npd.zone
+     LEFT JOIN scratch.reference.tmp_sales_data_week AS salesw
+     ON od.week = salesw.week
+         AND od.zone = salesw.zone
+     LEFT JOIN scratch.reference.tmp_sales_data_quarter AS salesq
+     ON od.zone = salesq.zone
+     LEFT JOIN scratch.reference.tmp_rx_supply_data AS rsd
+     ON od.zone = rsd.zone
+         AND od.week = rsd.week
+     LEFT JOIN scratch.reference.tmp_vouchers_data AS vd
+     ON od.week = vd.week
+         AND od.zone = vd.zone
+     LEFT JOIN scratch.reference.tmp_b10_data AS b10
+     ON od.week = b10.week
+         AND od.zone = b10.zone
+;
+
+
+-- FINAL TABLE 2 WITH ALL THE METRICS AT ZONE SPLIT
+-- BASED ON THE FIRST DETAILED TABLE ABOVE
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_zone_metrics AS
+SELECT
+    week AS week
+     , zone AS location
+    -- EMPTY MS COLUMNS
+     , NULL AS roo_weekly_ms
+     , NULL AS roo_qsr_weekly_ms
+     , NULL AS roo_nqsr_weekly_ms
+    -- ALL OTHER METRICS
+     , ov_total AS ov_total
+     , qsr_ov / NULLIF(ov_total,0) AS ov_qsr_perc
+     , nqsr_ov / NULLIF(ov_total,0) AS ov_nqsr_perc
+     , asap_rx / NULLIF(sessions_count,0) AS avg_rx_seen
+     , rx_seen_roo / NULLIF(rx_seen_ue,0) AS roo_vs_ue_supply
+     , rx_signed_q AS rx_signed_q
+     , rx_with_orders_q AS rx_with_orders_q
+     , g3_supply AS g3_supply
+     , exclusive_partners_ov / NULLIF(ov_total,0) AS exclusive_partners_ov_perc
+     , preferred_partners_ov / NULLIF(ov_total,0) AS preferred_partners_ov_perc
+     , non_exclusive_partners_ov / NULLIF(ov_total,0) AS non_exclusive_partners_ov_perc
+     , exclusive_partner_supply / NULLIF(rx_supply,0) AS exclusive_partners_accounts_perc
+     , preferred_partner_supply / NULLIF(rx_supply,0) AS preferred_partners_accounts_perc
+     , non_exclusive_partners  / NULLIF(rx_supply,0) AS non_exclusive_partners_accounts_perc
+     , cnt_b10_orders / NULLIF(cnt_b10_orders_denominator,0) AS b10_perc
+     , cnt_b10_orders_unacceptable_lates/ NULLIF(cnt_b10_orders_denominator,0) AS b10_ul_perc
+     , cnt_b10_orders_missing_items/ NULLIF(cnt_b10_orders_denominator,0) AS b10_missing_perc
+     , cnt_b10_orders_rejections/ NULLIF(cnt_b10_orders_denominator,0) AS b10_rejection_perc
+     , cnt_b10_orders_omdnr/ NULLIF(cnt_b10_orders_denominator,0) AS b10_omdnr_perc
+     , cnt_b10_orders_cancellations/ NULLIF(cnt_b10_orders_denominator,0) AS b10_cancellation_perc
+     , cnt_b10_orders_spoiled_food/ NULLIF(cnt_b10_orders_denominator,0) AS b10_spoiled_perc
+     , cnt_b10_orders_amended/ NULLIF(cnt_b10_orders_denominator,0) AS b10_amended_perc
+     , wait_time_past_target_time_mins_sum / NULLIF(wait_time_past_target_time_cnt,0) as war_pt
+     , wtpt_5_ov / NULLIF(ov_total,0) AS wtpt_5_perc
+     , rsr_not_visible / NULLIF((asap_rx + rsr_not_visible),0) as pct_RSR
+     , sessions_ec AS sessions_ec
+     , sessions_nc AS sessions_nc
+     , ec_num / NULLIF(sessions_ec,0) AS ec_cvr
+     , nc_num / NULLIF(sessions_nc,0) AS nc_cvr
+     , nc_ov AS nc_ov
+     , aof_num / NULLIF(aof_den,0) AS aof
+     , plus_ov / NULLIF(ov_total,0) AS plus_ov_perc
+     , plus_subscribers AS plus_subscribers
+     , new_plus_subscribers AS new_plus_subscribers
+     , meal_card_total_ov / NULLIF(ov_total,0) AS meal_card_perc
+     , marketer_ov / NULLIF(ov_total,0) AS marketer_perc
+     , marketer_rx / NULLIF(rx_supply,0) AS marketer_rx
+     , qsr_marketer_ov / NULLIF(qsr_ov,0) AS marketer_qsr_perc
+     , bogof_ov / NULLIF(ov_total,0) AS bogof_perc
+     , bogof_rx / NULLIF(rx_supply,0) AS bogof_rx
+     , free_delivery_ov / NULLIF(ov_total,0) AS free_delivery_perc
+     , nux_ov / NULLIF(ov_total,0) AS nux_perc
+     , incentivised_ov / NULLIF(ov_total,0) AS voucher_perc
+     , total_promo_ov / NULLIF(ov_total,0) AS total_promo
+     , (rx_promo_roo/ NULLIF(rx_seen_roo,0)) - (rx_promo_ue/NULLIF(rx_seen_ue,0)) AS roo_vs_ue_promo
+     , rx_signed_w AS rx_signed_w
+     , rx_with_orders_w AS rx_with_orders_w
+     , odc_supply
+     , voucher_redeemed
+     , voucher_debited
+     , kfc_present + mcdo_present + bk_present AS g3_count
+    -- EMPTY MS COLUMNS
+     , NULL AS roo_weekly_ms_gtv
+     , NULL AS roo_qsr_weekly_ms_gtv
+     , NULL AS roo_nqsr_weekly_ms_gtv
+
+FROM scratch.reference.tmp_zone_detailed_metrics
+;
+
+-- FINAL TABLE 3 WITH ALL THE METRICS AT SPLIT CITY SPLIT
+-- BASED ON THE FIRST DETAILED TABLE ABOVE
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_inner_outer_metrics AS
+WITH tab1 AS (SELECT
+                  week
+                   , CASE
+        WHEN zone IN ('LYON', 'LCRC') THEN 'Inner Lyon'
+        WHEN city = 'Lyon' AND zone NOT IN ('LYON', 'LCRC') THEN 'Outer Lyon'
+
+        WHEN zone IN ('MARS', 'MALO') THEN 'Inner Marseille'
+        WHEN city = 'Marseille' AND zone NOT IN ('LYON', 'LCRC') THEN 'Outer Marseille'
+
+        WHEN zone IN ('GRE2') THEN 'Inner Grenoble'
+        WHEN city = 'Grenoble' AND zone NOT IN ('GRE2') THEN 'Outer Grenoble'
+
+        WHEN zone IN ('LCWS') THEN 'Inner Lille'
+        WHEN city = 'Lille' AND zone NOT IN ('LCWS') THEN 'Outer Lille'
+
+        WHEN zone IN ('TLS1') THEN 'Inner Toulouse'
+        WHEN city = 'Toulouse' AND zone NOT IN ('TLS1') THEN 'Outer Toulouse'
+
+        WHEN zone IN ('PLDN','PVIN','PBAG','PCTL','PNP','PLD','PGN') THEN 'Paris Outer 1'
+        WHEN zone IN ('PSD','PISE','PRM','PARG','PAUL','PBOB','PSAR','PANT','PVER','PCSM','PSMR','PTA','PSUR','PCLA','PMAS','PBOI','PVEL','PVTY','PBON','PSG','PPLA','PGLG','PVJF','PTHI','PCHOU','PVCG','PAMJ','PMON','MELU','PIG','PTOR','PNOI','PCLG','PSA','PVSG','POLY','PPC','PGNY','PSAV','PVSD','PJOY','PEV','PCER','PTBY','PCE','PSMO','PMAV','PBOR','PPON','PCSH','PMOY','PSEN','PLM','PPER','PCHL','PASO','PVPA','PBSG','PCSY','PSGA','FAPO','PBRU') THEN 'Paris Outer 2'
+        WHEN zone IN ('PCN','PE','PNO','PCRG','PNE','PN','PSO','PBB','PO','PLP','PSE','PS','PCLI','PMRG','PI') THEN 'Paris Inner'
+
+        END AS location
+                  -- ALL OTHER METRICS
+                   , SUM(ov_total) AS ov_total
+                   , SUM(qsr_ov) / NULLIF(SUM(ov_total),0) AS ov_qsr_perc
+                   , SUM(nqsr_ov) / NULLIF(SUM(ov_total),0) AS ov_nqsr_perc
+                   , SUM(asap_rx) / NULLIF(SUM(sessions_count),0) AS avg_rx_seen
+                   , SUM(rx_seen_roo) / NULLIF(SUM(rx_seen_ue),0) AS roo_vs_ue_supply
+                   , SUM(rx_signed_q) AS rx_signed_q
+                   , SUM(rx_with_orders_q) AS rx_with_orders_q
+                   , SUM(g3_supply) AS g3_supply
+                   , SUM(exclusive_partners_ov) / NULLIF(SUM(ov_total),0) AS exclusive_partners_ov_perc
+                   , SUM(preferred_partners_ov) / NULLIF(SUM(ov_total),0) AS preferred_partners_ov_perc
+                   , SUM(non_exclusive_partners_ov) / NULLIF(SUM(ov_total),0) AS non_exclusive_partners_ov_perc
+                   , SUM(exclusive_partner_supply) / NULLIF(SUM(rx_supply),0) AS exclusive_partners_accounts_perc
+                   , SUM(preferred_partner_supply) / NULLIF(SUM(rx_supply),0) AS preferred_partners_accounts_perc
+                   , SUM(non_exclusive_partners)  / NULLIF(SUM(rx_supply),0) AS non_exclusive_partners_accounts_perc
+                   , SUM(cnt_b10_orders) / NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_perc
+                   , SUM(cnt_b10_orders_unacceptable_lates)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_ul_perc
+                   , SUM(cnt_b10_orders_missing_items)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_missing_perc
+                   , SUM(cnt_b10_orders_rejections)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_rejection_perc
+                   , SUM(cnt_b10_orders_omdnr)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_omdnr_perc
+                   , SUM(cnt_b10_orders_cancellations)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_cancellation_perc
+                   , SUM(cnt_b10_orders_spoiled_food)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_spoiled_perc
+                   , SUM(cnt_b10_orders_amended)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_amended_perc
+                   , SUM(wait_time_past_target_time_mins_sum) / NULLIF(SUM(wait_time_past_target_time_cnt),0) as war_pt
+                   , SUM(wtpt_5_ov) / NULLIF(SUM(ov_total),0) AS wtpt_5_ov
+                   , SUM(rsr_not_visible) / NULLIF((SUM(asap_rx) + SUM(rsr_not_visible)),0) as pct_RSR
+                   , SUM(sessions_ec) AS sessions_ec
+                   , SUM(sessions_nc) AS sessions_nc
+                   , SUM(ec_num) / NULLIF(SUM(sessions_ec),0) AS ec_cvr
+                   , SUM(nc_num) / NULLIF(SUM(sessions_nc),0) AS nc_cvr
+                   , SUM(nc_ov) AS nc_ov
+                   , SUM(aof_num) / NULLIF(SUM(aof_den),0) AS aof
+                   , SUM(plus_ov) / NULLIF(SUM(ov_total),0) AS plus_ov_perc
+                   , SUM(plus_subscribers) AS plus_subscribers
+                   , SUM(new_plus_subscribers) AS new_plus_subscribers
+                   , SUM(meal_card_total_ov) / NULLIF(SUM(ov_total),0) AS meal_card_perc
+                   , SUM(marketer_ov) / NULLIF(SUM(ov_total),0) AS marketer_perc
+                   , SUM(marketer_rx) / NULLIF(SUM(rx_supply),0) AS marketer_rx
+                   , SUM(qsr_marketer_ov) / NULLIF(SUM(qsr_ov),0) AS marketer_qsr_perc
+                   , SUM(bogof_ov) / NULLIF(SUM(ov_total),0) AS bogof_perc
+                   , SUM(bogof_rx) / NULLIF(SUM(rx_supply),0) AS bogof_rx
+                   , SUM(free_delivery_ov) / NULLIF(SUM(ov_total),0) AS free_delivery_perc
+                   , SUM(nux_ov) / NULLIF(SUM(ov_total),0) AS nux_perc
+                   , SUM(incentivised_ov) / NULLIF(SUM(ov_total),0) AS voucher_perc
+                   , SUM(total_promo_ov) / NULLIF(SUM(ov_total),0) AS total_promo
+                   , (SUM(rx_promo_roo)/ NULLIF(SUM(rx_seen_roo),0)) - (SUM(rx_promo_ue)/NULLIF(SUM(rx_seen_ue),0)) AS roo_vs_ue_promo
+                   , SUM(rx_signed_w) AS rx_signed_w
+                   , SUM(rx_with_orders_w) AS rx_with_orders_w
+                   , SUM(odc_supply) AS odc_supply
+                   , SUM(voucher_redeemed) AS voucher_redeemed
+                   , SUM(voucher_debited) AS voucher_debited
+                   , NULL AS g3_count
+
+              FROM scratch.reference.tmp_zone_detailed_metrics
+              GROUP BY 1,2
+              HAVING location IS NOT NULL
+              ORDER BY 2,1)
+SELECT
+    tab1.week
+     , tab1.location
+     , md.roo_weekly_ms AS roo_weekly_ms
+     , md.roo_qsr_weekly_ms AS roo_qsr_weekly_ms
+     , md.roo_nqsr_weekly_ms AS roo_nqsr_weekly_ms
+     , ov_total
+     , ov_qsr_perc
+     , ov_nqsr_perc
+     , avg_rx_seen
+     , roo_vs_ue_supply
+     , rx_signed_q
+     , rx_with_orders_q
+     , g3_supply
+     , exclusive_partners_ov_perc
+     , preferred_partners_ov_perc
+     , non_exclusive_partners_ov_perc
+     , exclusive_partners_accounts_perc
+     , preferred_partners_accounts_perc
+     , non_exclusive_partners_accounts_perc
+     , b10_perc
+     , b10_ul_perc
+     , b10_missing_perc
+     , b10_rejection_perc
+     , b10_omdnr_perc
+     , b10_cancellation_perc
+     , b10_spoiled_perc
+     , b10_amended_perc
+     , war_pt
+     , wtpt_5_ov
+     , pct_RSR
+     , sessions_ec
+     , sessions_nc
+     , ec_cvr
+     , nc_cvr
+     , nc_ov
+     , aof
+     , plus_ov_perc
+     , plus_subscribers
+     , new_plus_subscribers
+     , meal_card_perc
+     , marketer_perc
+     , marketer_rx
+     , marketer_qsr_perc
+     , bogof_perc
+     , bogof_rx
+     , free_delivery_perc
+     , nux_perc
+     , voucher_perc
+     , total_promo
+     , roo_vs_ue_promo
+     , rx_signed_w
+     , rx_with_orders_w
+     , odc_supply
+     , voucher_redeemed
+     , voucher_debited
+     , g3_count
+     , md.roo_weekly_ms_gtv AS roo_weekly_ms_gtv
+     , md.roo_qsr_weekly_ms_gtv AS roo_qsr_weekly_ms_gtv
+     , md.roo_nqsr_weekly_ms_gtv AS roo_nqsr_weekly_ms_gtv
+
+FROM tab1
+     LEFT JOIN scratch.reference.tmp_ms_data AS md
+     ON tab1.week = md.week
+         AND tab1.location = md.city
+;
+
+
+-- FINAL TABLE 4 WITH ALL THE METRICS AT CITY LEVEL
+-- BASED ON THE FIRST DETAILED TABLE ABOVE
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_city_metrics AS
+SELECT
+    zdm.week
+     , CASE WHEN zdm.city = 'Lyon' THEN 'Lyon City'
+            WHEN zdm.city = 'Caen' THEN 'Caen City'
+            WHEN zdm.city = 'Metz' THEN 'Metz City'
+            WHEN zdm.city = 'Lens' THEN 'Lens City'
+            WHEN zdm.city = 'Albi' THEN 'Albi City'
+            WHEN zdm.city = 'Pau' THEN 'Pau City'
+            WHEN zdm.city = 'Agen' THEN 'Agen City'
+            ELSE zdm.city END AS location
+    -- MS DATA
+     , MAX(md.roo_weekly_ms) AS roo_weekly_ms
+     , MAX(md.roo_qsr_weekly_ms) AS roo_qsr_weekly_ms
+     , MAX(md.roo_nqsr_weekly_ms) AS roo_nqsr_weekly_ms
+    -- ALL OTHER DATA
+     , SUM(ov_total) AS ov_total
+     , SUM(qsr_ov) / NULLIF(SUM(ov_total),0) AS ov_qsr_perc
+     , SUM(nqsr_ov) / NULLIF(SUM(ov_total),0) AS ov_nqsr_perc
+     , SUM(asap_rx) / NULLIF(SUM(sessions_count),0) AS avg_rx_seen
+     , SUM(rx_seen_roo) / NULLIF(SUM(rx_seen_ue),0) AS roo_vs_ue_supply
+     , SUM(rx_signed_q) AS rx_signed_q
+     , SUM(rx_with_orders_q) AS rx_with_orders_q
+     , SUM(g3_supply) AS g3_supply
+     , SUM(exclusive_partners_ov) / NULLIF(SUM(ov_total),0) AS exclusive_partners_ov_perc
+     , SUM(preferred_partners_ov) / NULLIF(SUM(ov_total),0) AS preferred_partners_ov_perc
+     , SUM(non_exclusive_partners_ov) / NULLIF(SUM(ov_total),0) AS non_exclusive_partners_ov_perc
+     , SUM(exclusive_partner_supply) / NULLIF(SUM(rx_supply),0) AS exclusive_partners_accounts_perc
+     , SUM(preferred_partner_supply) / NULLIF(SUM(rx_supply),0) AS preferred_partners_accounts_perc
+     , SUM(non_exclusive_partners)  / NULLIF(SUM(rx_supply),0) AS non_exclusive_partners_accounts_perc
+     , SUM(cnt_b10_orders) / NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_perc
+     , SUM(cnt_b10_orders_unacceptable_lates)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_ul_perc
+     , SUM(cnt_b10_orders_missing_items)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_missing_perc
+     , SUM(cnt_b10_orders_rejections)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_rejection_perc
+     , SUM(cnt_b10_orders_omdnr)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_omdnr_perc
+     , SUM(cnt_b10_orders_cancellations)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_cancellation_perc
+     , SUM(cnt_b10_orders_spoiled_food)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_spoiled_perc
+     , SUM(cnt_b10_orders_amended)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_amended_perc
+     , SUM(wait_time_past_target_time_mins_sum) / NULLIF(SUM(wait_time_past_target_time_cnt),0) as war_pt
+     , SUM(wtpt_5_ov) / NULLIF(SUM(ov_total),0) AS wtpt_5_ov
+     , SUM(rsr_not_visible) / NULLIF((SUM(asap_rx) + SUM(rsr_not_visible)),0) as pct_RSR
+     , SUM(sessions_ec) AS sessions_ec
+     , SUM(sessions_nc) AS sessions_nc
+     , SUM(ec_num) / NULLIF(SUM(sessions_ec),0) AS ec_cvr
+     , SUM(nc_num) / NULLIF(SUM(sessions_nc),0) AS nc_cvr
+     , SUM(nc_ov) AS nc_ov
+     , SUM(aof_num) / NULLIF(SUM(aof_den),0) AS aof
+     , SUM(plus_ov) / NULLIF(SUM(ov_total),0) AS plus_ov_perc
+     , SUM(plus_subscribers) AS plus_subscribers
+     , SUM(new_plus_subscribers) AS new_plus_subscribers
+     , SUM(meal_card_total_ov) / NULLIF(SUM(ov_total),0) AS meal_card_perc
+     , SUM(marketer_ov) / NULLIF(SUM(ov_total),0) AS marketer_perc
+     , SUM(marketer_rx) / NULLIF(SUM(rx_supply),0) AS marketer_rx
+     , SUM(qsr_marketer_ov) / NULLIF(SUM(qsr_ov),0) AS marketer_qsr_perc
+     , SUM(bogof_ov) / NULLIF(SUM(ov_total),0) AS bogof_perc
+     , SUM(bogof_rx) / NULLIF(SUM(rx_supply),0) AS bogof_rx
+     , SUM(free_delivery_ov) / NULLIF(SUM(ov_total),0) AS free_delivery_perc
+     , SUM(nux_ov) / NULLIF(SUM(ov_total),0) AS nux_perc
+     , SUM(incentivised_ov) / NULLIF(SUM(ov_total),0) AS voucher_perc
+     , SUM(total_promo_ov) / NULLIF(SUM(ov_total),0) AS total_promo
+     , (SUM(rx_promo_roo)/ NULLIF(SUM(rx_seen_roo),0)) - (SUM(rx_promo_ue)/NULLIF(SUM(rx_seen_ue),0)) AS roo_vs_ue_promo
+     , SUM(rx_signed_w) AS rx_signed_w
+     , SUM(rx_with_orders_w) AS rx_with_orders_w
+     , SUM(odc_supply) AS odc_supply
+     , SUM(voucher_redeemed) AS voucher_redeemed
+     , SUM(voucher_debited) AS voucher_debited
+     , NULL AS g3_count
+   -- MS DATA
+     , MAX(md.roo_weekly_ms_gtv) AS roo_weekly_ms_gtv
+     , MAX(md.roo_qsr_weekly_ms_gtv) AS roo_qsr_weekly_ms_gtv
+     , MAX(md.roo_nqsr_weekly_ms_gtv) AS roo_nqsr_weekly_ms_gtv
+
+FROM scratch.reference.tmp_zone_detailed_metrics zdm
+     LEFT JOIN scratch.reference.tmp_ms_data AS md
+     ON zdm.week = md.week
+         AND zdm.city = md.city
+GROUP BY 1,2
+;
+
+-- FINAL TABLE 5 WITH ALL THE METRICS AT COUNTRY LEVEL
+-- BASED ON THE FIRST DETAILED TABLE ABOVE
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_country_metrics AS
+SELECT
+    zdm.week
+     , zdm.country AS location
+    -- MS DATA
+     , MAX(md.roo_weekly_ms) AS roo_weekly_ms
+     , MAX(md.roo_qsr_weekly_ms) AS roo_qsr_weekly_ms
+     , MAX(md.roo_nqsr_weekly_ms) AS roo_nqsr_weekly_ms
+    -- ALL OTHER DATA
+     , SUM(ov_total) AS ov_total
+     , SUM(qsr_ov) / NULLIF(SUM(ov_total),0) AS ov_qsr_perc
+     , SUM(nqsr_ov) / NULLIF(SUM(ov_total),0) AS ov_nqsr_perc
+     , SUM(asap_rx) / NULLIF(SUM(sessions_count),0) AS avg_rx_seen
+     , SUM(rx_seen_roo) / NULLIF(SUM(rx_seen_ue),0) AS roo_vs_ue_supply
+     , SUM(rx_signed_q) AS rx_signed_q
+     , SUM(rx_with_orders_q) AS rx_with_orders_q
+     , SUM(g3_supply) AS g3_supply
+     , SUM(exclusive_partners_ov) / NULLIF(SUM(ov_total),0) AS exclusive_partners_ov_perc
+     , SUM(preferred_partners_ov) / NULLIF(SUM(ov_total),0) AS preferred_partners_ov_perc
+     , SUM(non_exclusive_partners_ov) / NULLIF(SUM(ov_total),0) AS non_exclusive_partners_ov_perc
+     , SUM(exclusive_partner_supply) / NULLIF(SUM(rx_supply),0) AS exclusive_partners_accounts_perc
+     , SUM(preferred_partner_supply) / NULLIF(SUM(rx_supply),0) AS preferred_partners_accounts_perc
+     , SUM(non_exclusive_partners)  / NULLIF(SUM(rx_supply),0) AS non_exclusive_partners_accounts_perc
+     , SUM(cnt_b10_orders) / NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_perc
+     , SUM(cnt_b10_orders_unacceptable_lates)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_ul_perc
+     , SUM(cnt_b10_orders_missing_items)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_missing_perc
+     , SUM(cnt_b10_orders_rejections)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_rejection_perc
+     , SUM(cnt_b10_orders_omdnr)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_omdnr_perc
+     , SUM(cnt_b10_orders_cancellations)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_cancellation_perc
+     , SUM(cnt_b10_orders_spoiled_food)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_spoiled_perc
+     , SUM(cnt_b10_orders_amended)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_amended_perc
+     , SUM(wait_time_past_target_time_mins_sum) / NULLIF(SUM(wait_time_past_target_time_cnt),0) as war_pt
+     , SUM(wtpt_5_ov) / NULLIF(SUM(ov_total),0) AS wtpt_5_ov
+     , SUM(rsr_not_visible) / NULLIF((SUM(asap_rx) + SUM(rsr_not_visible)),0) as pct_RSR
+     , SUM(sessions_ec) AS sessions_ec
+     , SUM(sessions_nc) AS sessions_nc
+     , SUM(ec_num) / NULLIF(SUM(sessions_ec),0) AS ec_cvr
+     , SUM(nc_num) / NULLIF(SUM(sessions_nc),0) AS nc_cvr
+     , SUM(nc_ov) AS nc_ov
+     , SUM(aof_num) / NULLIF(SUM(aof_den),0) AS aof
+     , SUM(plus_ov) / NULLIF(SUM(ov_total),0) AS plus_ov_perc
+     , SUM(plus_subscribers) AS plus_subscribers
+     , SUM(new_plus_subscribers) AS new_plus_subscribers
+     , SUM(meal_card_total_ov) / NULLIF(SUM(ov_total),0) AS meal_card_perc
+     , SUM(marketer_ov) / NULLIF(SUM(ov_total),0) AS marketer_perc
+     , SUM(marketer_rx) / NULLIF(SUM(rx_supply),0) AS marketer_rx
+     , SUM(qsr_marketer_ov) / NULLIF(SUM(qsr_ov),0) AS marketer_qsr_perc
+     , SUM(bogof_ov) / NULLIF(SUM(ov_total),0) AS bogof_perc
+     , SUM(bogof_rx) / NULLIF(SUM(rx_supply),0) AS bogof_rx
+     , SUM(free_delivery_ov) / NULLIF(SUM(ov_total),0) AS free_delivery_perc
+     , SUM(nux_ov) / NULLIF(SUM(ov_total),0) AS nux_perc
+     , SUM(incentivised_ov) / NULLIF(SUM(ov_total),0) AS voucher_perc
+     , SUM(total_promo_ov) / NULLIF(SUM(ov_total),0) AS total_promo
+     , (SUM(rx_promo_roo)/ NULLIF(SUM(rx_seen_roo),0)) - (SUM(rx_promo_ue)/NULLIF(SUM(rx_seen_ue),0)) AS roo_vs_ue_promo
+     , SUM(rx_signed_w) AS rx_signed_w
+     , SUM(rx_with_orders_w) AS rx_with_orders_w
+     , SUM(odc_supply) AS odc_supply
+     , SUM(voucher_redeemed) AS voucher_redeemed
+     , SUM(voucher_debited) AS voucher_debited
+     , NULL AS g3_count
+ -- MS DATA
+     , MAX(md.roo_weekly_ms_gtv) AS roo_weekly_ms_gtv
+     , MAX(md.roo_qsr_weekly_ms_gtv) AS roo_qsr_weekly_ms_gtv
+     , MAX(md.roo_nqsr_weekly_ms_gtv) AS roo_nqsr_weekly_ms_gtv
+
+FROM scratch.reference.tmp_zone_detailed_metrics zdm
+     LEFT JOIN scratch.reference.tmp_ms_data_country AS md
+     ON zdm.week = md.week
+         AND zdm.country = md.country
+GROUP BY 1,2
+;
+
+-- FINAL TABLE 6 WITH ALL THE METRICS AT SPLIT ARCHETYPE
+-- BASED ON THE FIRST DETAILED TABLE ABOVE
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_archetype_metrics AS
+WITH table1 AS (
+    SELECT
+        week
+         , CASE
+        WHEN zone IN ('PLDN','PVIN','PBAG','PCTL','PNP','PLD','PGN','PSD','PISE','PRM','PARG','PAUL','PBOB','PSAR','PANT','PVER','PCSM','PSMR','PTA','PSUR','PCLA','PMAS','PBOI','PVEL','PVTY','PBON','PSG','PPLA','PGLG','PVJF','PTHI','PCHOU','PVCG','PAMJ','PMON','MELU','PIG','PTOR','PNOI','PCLG','PSA','PVSG','POLY','PPC','PGNY','PSAV','PVSD','PJOY','PEV','PCER','PTBY','PCE','PSMO','PMAV','PBOR','PPON','PCSH','PMOY','PSEN','PLM','PPER','PCHL','PASO','PVPA','PBSG','PCSY','PSGA','FAPO','PBRU','LYON','LCRC','LYNO','LSE','LNE','LOUP','LYSO','LYMO','TLS1','TSTO','TBLM','TBLA','TTF','MARS','MALO','MARB','MAGL','MARM','MARV','MTR','MTRC','MTRP','NC','NACS','VENC','ANTB','REN','RENS','RMS','RMSN','TRS','TRJC','TRSC','LCWS','LVDA','RBTG','FACH','SEQD') THEN 'Invest 1'
+        WHEN zone IN ('NAC','DIJ','CFD','ANG','ROU','ORL','LMS','BRST','PTRS','METZ','LHV','ANCY','ANCS','AMS','NEMS','CANN') THEN 'Invest 2'
+        WHEN zone IN ('NAT','NASH','NARV','GRE2','GREC','GREG','PCN','PE','PNO','PCRG','PNE','PN','PSO','PBB','PO','PLP','PSE','PS','PCLI','PMRG','PI','VLCN','TROY','MUL','BESA','ALBI','VICO','NASL','BDX','BLBE','BME','BTPG','BBVO','BLOC','BCAR','BMJ','AIX1','AIX2','STRG','SIOL','SVML') THEN 'Profit Pool'
+        WHEN zone IN ('VANS','VAL','TARB','QMPR','PERP','MEAU','LRNT','LRSY','COMP','COLM','CHOC','CHAT','CBRY','BLOI','BEAU','BAY','AVG','ARRA','ANNE','AGEN','TLN','TLN2','STE','PAU','NIME','LIMO','LRC','CAEN','TULL','TORO','THIO','SABO','SNAZ','SDVO','RUMY','ROUS','RFOR','RAMB','PERI','POMO','NOY','MERU','MNTB','MAUB','MLJO','LOUV','LGWY','LENS','WAZI','LAVA','FEJO','GUIG','FREY','FTNB','EVRX','DUNK','DALE','CREI','COUL','CHAG','CAU','CASS','CALA','BEZI','BOUM','BAIL','ARG') THEN 'KTLO'
+        END AS location
+        -- EMPTY MS COLUMNS
+        -- WILL BE POPULATED IN THE QUERY BELOW
+        -- ALL OTHER METRICS
+         , SUM(ov_total) AS ov_total
+         , SUM(qsr_ov) / NULLIF(SUM(ov_total),0) AS ov_qsr_perc
+         , SUM(nqsr_ov) / NULLIF(SUM(ov_total),0) AS ov_nqsr_perc
+         , SUM(asap_rx) / NULLIF(SUM(sessions_count),0) AS avg_rx_seen
+         , SUM(rx_seen_roo) / NULLIF(SUM(rx_seen_ue),0) AS roo_vs_ue_supply
+         , SUM(rx_signed_q) AS rx_signed_q
+         , SUM(rx_with_orders_q) AS rx_with_orders_q
+         , SUM(g3_supply) AS g3_supply
+         , SUM(exclusive_partners_ov) / NULLIF(SUM(ov_total),0) AS exclusive_partners_ov_perc
+         , SUM(preferred_partners_ov) / NULLIF(SUM(ov_total),0) AS preferred_partners_ov_perc
+         , SUM(non_exclusive_partners_ov) / NULLIF(SUM(ov_total),0) AS non_exclusive_partners_ov_perc
+         , SUM(exclusive_partner_supply) / NULLIF(SUM(rx_supply),0) AS exclusive_partners_accounts_perc
+         , SUM(preferred_partner_supply) / NULLIF(SUM(rx_supply),0) AS preferred_partners_accounts_perc
+         , SUM(non_exclusive_partners)  / NULLIF(SUM(rx_supply),0) AS non_exclusive_partners_accounts_perc
+         , SUM(cnt_b10_orders) / NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_perc
+         , SUM(cnt_b10_orders_unacceptable_lates)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_ul_perc
+         , SUM(cnt_b10_orders_missing_items)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_missing_perc
+         , SUM(cnt_b10_orders_rejections)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_rejection_perc
+         , SUM(cnt_b10_orders_omdnr)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_omdnr_perc
+         , SUM(cnt_b10_orders_cancellations)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_cancellation_perc
+         , SUM(cnt_b10_orders_spoiled_food)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_spoiled_perc
+         , SUM(cnt_b10_orders_amended)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_amended_perc
+         , SUM(wait_time_past_target_time_mins_sum) / NULLIF(SUM(wait_time_past_target_time_cnt),0) as war_pt
+         , SUM(wtpt_5_ov) / NULLIF(SUM(ov_total),0) AS wtpt_5_ov
+         , SUM(rsr_not_visible) / NULLIF((SUM(asap_rx) + SUM(rsr_not_visible)),0) as pct_RSR
+         , SUM(sessions_ec) AS sessions_ec
+         , SUM(sessions_nc) AS sessions_nc
+         , SUM(ec_num) / NULLIF(SUM(sessions_ec),0) AS ec_cvr
+         , SUM(nc_num) / NULLIF(SUM(sessions_nc),0) AS nc_cvr
+         , SUM(nc_ov) AS nc_ov
+         , SUM(aof_num) / NULLIF(SUM(aof_den),0) AS aof
+         , SUM(plus_ov) / NULLIF(SUM(ov_total),0) AS plus_ov_perc
+         , SUM(plus_subscribers) AS plus_subscribers
+         , SUM(new_plus_subscribers) AS new_plus_subscribers
+         , SUM(meal_card_total_ov) / NULLIF(SUM(ov_total),0) AS meal_card_perc
+         , SUM(marketer_ov) / NULLIF(SUM(ov_total),0) AS marketer_perc
+         , SUM(marketer_rx) / NULLIF(SUM(rx_supply),0) AS marketer_rx
+         , SUM(qsr_marketer_ov) / NULLIF(SUM(qsr_ov),0) AS marketer_qsr_perc
+         , SUM(bogof_ov) / NULLIF(SUM(ov_total),0) AS bogof_perc
+         , SUM(bogof_rx) / NULLIF(SUM(rx_supply),0) AS bogof_rx
+         , SUM(free_delivery_ov) / NULLIF(SUM(ov_total),0) AS free_delivery_perc
+         , SUM(nux_ov) / NULLIF(SUM(ov_total),0) AS nux_perc
+         , SUM(incentivised_ov) / NULLIF(SUM(ov_total),0) AS voucher_perc
+         , SUM(total_promo_ov) / NULLIF(SUM(ov_total),0) AS total_promo
+         , (SUM(rx_promo_roo)/ NULLIF(SUM(rx_seen_roo),0)) - (SUM(rx_promo_ue)/NULLIF(SUM(rx_seen_ue),0)) AS roo_vs_ue_promo
+         , SUM(rx_signed_w) AS rx_signed_w
+         , SUM(rx_with_orders_w) AS rx_with_orders_w
+         , SUM(odc_supply) AS odc_supply
+         , SUM(voucher_redeemed) AS voucher_redeemed
+         , SUM(voucher_debited) AS voucher_debited
+         , NULL AS g3_count
+
+    FROM scratch.reference.tmp_zone_detailed_metrics AS zdm
+    GROUP BY 1,2
+    HAVING location IS NOT NULL
+    ORDER BY 2,1
+)
+SELECT
+    table1.week
+     , table1.location
+     , fnf.roo_weekly_ms
+     , fnf.roo_qsr_weekly_ms
+     , fnf.roo_nqsr_weekly_ms
+     , ov_total
+     , ov_qsr_perc
+     , ov_nqsr_perc
+     , avg_rx_seen
+     , roo_vs_ue_supply
+     , rx_signed_q
+     , rx_with_orders_q
+     , g3_supply
+     , exclusive_partners_ov_perc
+     , preferred_partners_ov_perc
+     , non_exclusive_partners_ov_perc
+     , exclusive_partners_accounts_perc
+     , preferred_partners_accounts_perc
+     , non_exclusive_partners_accounts_perc
+     , b10_perc
+     , b10_ul_perc
+     , b10_missing_perc
+     , b10_rejection_perc
+     , b10_omdnr_perc
+     , b10_cancellation_perc
+     , b10_spoiled_perc
+     , b10_amended_perc
+     , war_pt
+     , wtpt_5_ov
+     , pct_RSR
+     , sessions_ec
+     , sessions_nc
+     , ec_cvr
+     , nc_cvr
+     , nc_ov
+     , aof
+     , plus_ov_perc
+     , plus_subscribers
+     , new_plus_subscribers
+     , meal_card_perc
+     , marketer_perc
+     , marketer_rx
+     , marketer_qsr_perc
+     , bogof_perc
+     , bogof_rx
+     , free_delivery_perc
+     , nux_perc
+     , voucher_perc
+     , total_promo
+     , roo_vs_ue_promo
+     , rx_signed_w
+     , rx_with_orders_w
+     , odc_supply
+     , voucher_redeemed
+     , voucher_debited
+     , g3_count
+     , fnf.roo_weekly_ms_gtv
+     , fnf.roo_qsr_weekly_ms_gtv
+     , fnf.roo_nqsr_weekly_ms_gtv
+FROM table1
+     LEFT JOIN scratch.reference.tmp_ms_data_archetype as fnf
+     ON fnf.week = table1.week
+         AND fnf.location = table1.location
+;
+
+-- FINAL TABLE 7 WITH ALL THE METRICS AT BU SPLIT
+-- BASED ON THE FIRST DETAILED TABLE ABOVE
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_bu_metrics AS
+WITH tab1 AS (SELECT
+                  week
+                   , CASE
+    WHEN zone IN ('LYON','LCRC','LYNO','LSE','LNE','LOUP','LYSO','LYMO','TLS1','TSTO','TBLM','TBLA','TTF','MARS','MALO','MARB','MAGL','MARM',
+                  'MARV','MTR','MTRC','MTRP','NC','NACS','VENC','ANTB','REN','RENS','TRS','TRJC','TRSC','LCWS','LVDA','RBTG','FACH','SEQD','CFD',
+                  'CANN','DIJ','ANCY','BDX','BLBE','BME','BTPG','BBVO','BLOC','BCAR','BMJ','STRG','SIOL','SVML','NAT','NASH','NARV','GRE2','GREC',
+                  'GREG','AIX1','AIX2') THEN 'Top Cities'
+    WHEN zone IN ('RMS','RMSN','NAC','NEMS','ROU','ORL','PTRS','ANG','LMS','ANCY','ANCS','AMS','METZ','LHV','BRST','TROY','BESA','MUL','ALBI',
+                  'CAEN','LRC','LIMO','PAU','STE') THEN 'RFR Managed'
+    WHEN zone IN ('VLCN','AGEN','ANNE','ARG','ARRA','AVG','BAIL','BAY','BEAU','BEZI','BLOI','BOUM','CALA','CASS','CAU','CBRY','CHAT','CHAG',
+                  'CHOC','COLM','COMP','COUL','CREI','DALE','DUNK','EVRX','FTNB','FREY','GUIG','FEJO','LRSY','LAVA','LENS','WAZI','LGWY','LRNT',
+                  'LOUV','MLJO','MAUB','MEAU','MERU','MNTB','NIME','NOY','PERI','PERP','POMO','QMPR','RAMB','RFOR','ROUS','RUMY','SDVO','SNAZ',
+                  'SABO','TARB','THIO','TLN','TLN','TLN2','TORO','TULL','VAL','VANS') THEN 'RFR Unmanaged'
+
+        END AS location
+                  -- ALL OTHER METRICS
+                   , SUM(ov_total) AS ov_total
+                   , SUM(qsr_ov) / NULLIF(SUM(ov_total),0) AS ov_qsr_perc
+                   , SUM(nqsr_ov) / NULLIF(SUM(ov_total),0) AS ov_nqsr_perc
+                   , SUM(asap_rx) / NULLIF(SUM(sessions_count),0) AS avg_rx_seen
+                   , SUM(rx_seen_roo) / NULLIF(SUM(rx_seen_ue),0) AS roo_vs_ue_supply
+                   , SUM(rx_signed_q) AS rx_signed_q
+                   , SUM(rx_with_orders_q) AS rx_with_orders_q
+                   , SUM(g3_supply) AS g3_supply
+                   , SUM(exclusive_partners_ov) / NULLIF(SUM(ov_total),0) AS exclusive_partners_ov_perc
+                   , SUM(preferred_partners_ov) / NULLIF(SUM(ov_total),0) AS preferred_partners_ov_perc
+                   , SUM(non_exclusive_partners_ov) / NULLIF(SUM(ov_total),0) AS non_exclusive_partners_ov_perc
+                   , SUM(exclusive_partner_supply) / NULLIF(SUM(rx_supply),0) AS exclusive_partners_accounts_perc
+                   , SUM(preferred_partner_supply) / NULLIF(SUM(rx_supply),0) AS preferred_partners_accounts_perc
+                   , SUM(non_exclusive_partners)  / NULLIF(SUM(rx_supply),0) AS non_exclusive_partners_accounts_perc
+                   , SUM(cnt_b10_orders) / NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_perc
+                   , SUM(cnt_b10_orders_unacceptable_lates)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_ul_perc
+                   , SUM(cnt_b10_orders_missing_items)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_missing_perc
+                   , SUM(cnt_b10_orders_rejections)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_rejection_perc
+                   , SUM(cnt_b10_orders_omdnr)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_omdnr_perc
+                   , SUM(cnt_b10_orders_cancellations)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_cancellation_perc
+                   , SUM(cnt_b10_orders_spoiled_food)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_spoiled_perc
+                   , SUM(cnt_b10_orders_amended)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_amended_perc
+                   , SUM(wait_time_past_target_time_mins_sum) / NULLIF(SUM(wait_time_past_target_time_cnt),0) as war_pt
+                   , SUM(wtpt_5_ov) / NULLIF(SUM(ov_total),0) AS wtpt_5_ov
+                   , SUM(rsr_not_visible) / NULLIF((SUM(asap_rx) + SUM(rsr_not_visible)),0) as pct_RSR
+                   , SUM(sessions_ec) AS sessions_ec
+                   , SUM(sessions_nc) AS sessions_nc
+                   , SUM(ec_num) / NULLIF(SUM(sessions_ec),0) AS ec_cvr
+                   , SUM(nc_num) / NULLIF(SUM(sessions_nc),0) AS nc_cvr
+                   , SUM(nc_ov) AS nc_ov
+                   , SUM(aof_num) / NULLIF(SUM(aof_den),0) AS aof
+                   , SUM(plus_ov) / NULLIF(SUM(ov_total),0) AS plus_ov_perc
+                   , SUM(plus_subscribers) AS plus_subscribers
+                   , SUM(new_plus_subscribers) AS new_plus_subscribers
+                   , SUM(meal_card_total_ov) / NULLIF(SUM(ov_total),0) AS meal_card_perc
+                   , SUM(marketer_ov) / NULLIF(SUM(ov_total),0) AS marketer_perc
+                   , SUM(marketer_rx) / NULLIF(SUM(rx_supply),0) AS marketer_rx
+                   , SUM(qsr_marketer_ov) / NULLIF(SUM(qsr_ov),0) AS marketer_qsr_perc
+                   , SUM(bogof_ov) / NULLIF(SUM(ov_total),0) AS bogof_perc
+                   , SUM(bogof_rx) / NULLIF(SUM(rx_supply),0) AS bogof_rx
+                   , SUM(free_delivery_ov) / NULLIF(SUM(ov_total),0) AS free_delivery_perc
+                   , SUM(nux_ov) / NULLIF(SUM(ov_total),0) AS nux_perc
+                   , SUM(incentivised_ov) / NULLIF(SUM(ov_total),0) AS voucher_perc
+                   , SUM(total_promo_ov) / NULLIF(SUM(ov_total),0) AS total_promo
+                   , (SUM(rx_promo_roo)/ NULLIF(SUM(rx_seen_roo),0)) - (SUM(rx_promo_ue)/NULLIF(SUM(rx_seen_ue),0)) AS roo_vs_ue_promo
+                   , SUM(rx_signed_w) AS rx_signed_w
+                   , SUM(rx_with_orders_w) AS rx_with_orders_w
+                   , SUM(odc_supply) AS odc_supply
+                   , SUM(voucher_redeemed) AS voucher_redeemed
+                   , SUM(voucher_debited) AS voucher_debited
+                   , NULL AS g3_count
+
+              FROM scratch.reference.tmp_zone_detailed_metrics
+              GROUP BY 1,2
+              HAVING location IS NOT NULL
+              ORDER BY 2,1)
+SELECT
+    tab1.week
+     , tab1.location
+     , msbu.roo_weekly_ms AS roo_weekly_ms
+     , msbu.roo_qsr_weekly_ms AS roo_qsr_weekly_ms
+     , msbu.roo_nqsr_weekly_ms AS roo_nqsr_weekly_ms
+     , ov_total
+     , ov_qsr_perc
+     , ov_nqsr_perc
+     , avg_rx_seen
+     , roo_vs_ue_supply
+     , rx_signed_q
+     , rx_with_orders_q
+     , g3_supply
+     , exclusive_partners_ov_perc
+     , preferred_partners_ov_perc
+     , non_exclusive_partners_ov_perc
+     , exclusive_partners_accounts_perc
+     , preferred_partners_accounts_perc
+     , non_exclusive_partners_accounts_perc
+     , b10_perc
+     , b10_ul_perc
+     , b10_missing_perc
+     , b10_rejection_perc
+     , b10_omdnr_perc
+     , b10_cancellation_perc
+     , b10_spoiled_perc
+     , b10_amended_perc
+     , war_pt
+     , wtpt_5_ov
+     , pct_RSR
+     , sessions_ec
+     , sessions_nc
+     , ec_cvr
+     , nc_cvr
+     , nc_ov
+     , aof
+     , plus_ov_perc
+     , plus_subscribers
+     , new_plus_subscribers
+     , meal_card_perc
+     , marketer_perc
+     , marketer_rx
+     , marketer_qsr_perc
+     , bogof_perc
+     , bogof_rx
+     , free_delivery_perc
+     , nux_perc
+     , voucher_perc
+     , total_promo
+     , roo_vs_ue_promo
+     , rx_signed_w
+     , rx_with_orders_w
+     , odc_supply
+     , voucher_redeemed
+     , voucher_debited
+     , g3_count
+     , msbu.roo_weekly_ms_gtv AS roo_weekly_ms_gtv
+     , msbu.roo_qsr_weekly_ms_gtv AS roo_qsr_weekly_ms_gtv
+     , msbu.roo_nqsr_weekly_ms_gtv AS roo_nqsr_weekly_ms_gtv
+
+FROM tab1
+     LEFT JOIN scratch.reference.tmp_ms_data_bu AS msbu
+     ON tab1.week = msbu.week
+         AND tab1.location = msbu.city
+;
+
+-- FINAL TABLE 8 WITH ALL THE METRICS for total RFR (managed + unmanaged)
+-- BASED ON THE FIRST DETAILED TABLE ABOVE
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_rfr_metrics AS
+WITH tab1 AS (SELECT
+                  week
+                   , CASE
+    WHEN zone IN ('RMS','RMSN','NAC','NEMS','ROU','ORL','PTRS','ANG','LMS','ANCY','ANCS','AMS','METZ','LHV','BRST','TROY','BESA','MUL','ALBI',
+                                   'CAEN','LRC','LIMO','PAU','STE','VLCN','AGEN','ANNE','ARG','ARRA','AVG','BAIL','BAY','BEAU','BEZI','BLOI','BOUM','CALA',
+                                 'CASS','CAU','CBRY','CHAT','CHAG', 'CHOC','COLM','COMP','COUL','CREI','DALE','DUNK','EVRX','FTNB','FREY','GUIG','FEJO',
+                                 'LRSY','LAVA','LENS','WAZI','LGWY','LRNT','LOUV','MLJO','MAUB','MEAU','MERU','MNTB','NIME','NOY','PERI','PERP','POMO',
+                                 'QMPR','RAMB','RFOR','ROUS','RUMY','SDVO','SNAZ','SABO','TARB','THIO','TLN','TLN','TLN2','TORO','TULL','VAL','VANS') THEN 'RFR Total'
+
+        END AS location
+                  -- ALL OTHER METRICS
+                   , SUM(ov_total) AS ov_total
+                   , SUM(qsr_ov) / NULLIF(SUM(ov_total),0) AS ov_qsr_perc
+                   , SUM(nqsr_ov) / NULLIF(SUM(ov_total),0) AS ov_nqsr_perc
+                   , SUM(asap_rx) / NULLIF(SUM(sessions_count),0) AS avg_rx_seen
+                   , SUM(rx_seen_roo) / NULLIF(SUM(rx_seen_ue),0) AS roo_vs_ue_supply
+                   , SUM(rx_signed_q) AS rx_signed_q
+                   , SUM(rx_with_orders_q) AS rx_with_orders_q
+                   , SUM(g3_supply) AS g3_supply
+                   , SUM(exclusive_partners_ov) / NULLIF(SUM(ov_total),0) AS exclusive_partners_ov_perc
+                   , SUM(preferred_partners_ov) / NULLIF(SUM(ov_total),0) AS preferred_partners_ov_perc
+                   , SUM(non_exclusive_partners_ov) / NULLIF(SUM(ov_total),0) AS non_exclusive_partners_ov_perc
+                   , SUM(exclusive_partner_supply) / NULLIF(SUM(rx_supply),0) AS exclusive_partners_accounts_perc
+                   , SUM(preferred_partner_supply) / NULLIF(SUM(rx_supply),0) AS preferred_partners_accounts_perc
+                   , SUM(non_exclusive_partners)  / NULLIF(SUM(rx_supply),0) AS non_exclusive_partners_accounts_perc
+                   , SUM(cnt_b10_orders) / NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_perc
+                   , SUM(cnt_b10_orders_unacceptable_lates)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_ul_perc
+                   , SUM(cnt_b10_orders_missing_items)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_missing_perc
+                   , SUM(cnt_b10_orders_rejections)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_rejection_perc
+                   , SUM(cnt_b10_orders_omdnr)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_omdnr_perc
+                   , SUM(cnt_b10_orders_cancellations)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_cancellation_perc
+                   , SUM(cnt_b10_orders_spoiled_food)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_spoiled_perc
+                   , SUM(cnt_b10_orders_amended)/ NULLIF(SUM(cnt_b10_orders_denominator),0) AS b10_amended_perc
+                   , SUM(wait_time_past_target_time_mins_sum) / NULLIF(SUM(wait_time_past_target_time_cnt),0) as war_pt
+                   , SUM(wtpt_5_ov) / NULLIF(SUM(ov_total),0) AS wtpt_5_ov
+                   , SUM(rsr_not_visible) / NULLIF((SUM(asap_rx) + SUM(rsr_not_visible)),0) as pct_RSR
+                   , SUM(sessions_ec) AS sessions_ec
+                   , SUM(sessions_nc) AS sessions_nc
+                   , SUM(ec_num) / NULLIF(SUM(sessions_ec),0) AS ec_cvr
+                   , SUM(nc_num) / NULLIF(SUM(sessions_nc),0) AS nc_cvr
+                   , SUM(nc_ov) AS nc_ov
+                   , SUM(aof_num) / NULLIF(SUM(aof_den),0) AS aof
+                   , SUM(plus_ov) / NULLIF(SUM(ov_total),0) AS plus_ov_perc
+                   , SUM(plus_subscribers) AS plus_subscribers
+                   , SUM(new_plus_subscribers) AS new_plus_subscribers
+                   , SUM(meal_card_total_ov) / NULLIF(SUM(ov_total),0) AS meal_card_perc
+                   , SUM(marketer_ov) / NULLIF(SUM(ov_total),0) AS marketer_perc
+                   , SUM(marketer_rx) / NULLIF(SUM(rx_supply),0) AS marketer_rx
+                   , SUM(qsr_marketer_ov) / NULLIF(SUM(qsr_ov),0) AS marketer_qsr_perc
+                   , SUM(bogof_ov) / NULLIF(SUM(ov_total),0) AS bogof_perc
+                   , SUM(bogof_rx) / NULLIF(SUM(rx_supply),0) AS bogof_rx
+                   , SUM(free_delivery_ov) / NULLIF(SUM(ov_total),0) AS free_delivery_perc
+                   , SUM(nux_ov) / NULLIF(SUM(ov_total),0) AS nux_perc
+                   , SUM(incentivised_ov) / NULLIF(SUM(ov_total),0) AS voucher_perc
+                   , SUM(total_promo_ov) / NULLIF(SUM(ov_total),0) AS total_promo
+                   , (SUM(rx_promo_roo)/ NULLIF(SUM(rx_seen_roo),0)) - (SUM(rx_promo_ue)/NULLIF(SUM(rx_seen_ue),0)) AS roo_vs_ue_promo
+                   , SUM(rx_signed_w) AS rx_signed_w
+                   , SUM(rx_with_orders_w) AS rx_with_orders_w
+                   , SUM(odc_supply) AS odc_supply
+                   , SUM(voucher_redeemed) AS voucher_redeemed
+                   , SUM(voucher_debited) AS voucher_debited
+                   , NULL AS g3_count
+
+              FROM scratch.reference.tmp_zone_detailed_metrics
+              GROUP BY 1,2
+              HAVING location IS NOT NULL
+              ORDER BY 2,1)
+SELECT
+    tab1.week
+     , tab1.location
+     , msrfr.roo_weekly_ms AS roo_weekly_ms
+     , msrfr.roo_qsr_weekly_ms AS roo_qsr_weekly_ms
+     , msrfr.roo_nqsr_weekly_ms AS roo_nqsr_weekly_ms
+     , ov_total
+     , ov_qsr_perc
+     , ov_nqsr_perc
+     , avg_rx_seen
+     , roo_vs_ue_supply
+     , rx_signed_q
+     , rx_with_orders_q
+     , g3_supply
+     , exclusive_partners_ov_perc
+     , preferred_partners_ov_perc
+     , non_exclusive_partners_ov_perc
+     , exclusive_partners_accounts_perc
+     , preferred_partners_accounts_perc
+     , non_exclusive_partners_accounts_perc
+     , b10_perc
+     , b10_ul_perc
+     , b10_missing_perc
+     , b10_rejection_perc
+     , b10_omdnr_perc
+     , b10_cancellation_perc
+     , b10_spoiled_perc
+     , b10_amended_perc
+     , war_pt
+     , wtpt_5_ov
+     , pct_RSR
+     , sessions_ec
+     , sessions_nc
+     , ec_cvr
+     , nc_cvr
+     , nc_ov
+     , aof
+     , plus_ov_perc
+     , plus_subscribers
+     , new_plus_subscribers
+     , meal_card_perc
+     , marketer_perc
+     , marketer_rx
+     , marketer_qsr_perc
+     , bogof_perc
+     , bogof_rx
+     , free_delivery_perc
+     , nux_perc
+     , voucher_perc
+     , total_promo
+     , roo_vs_ue_promo
+     , rx_signed_w
+     , rx_with_orders_w
+     , odc_supply
+     , voucher_redeemed
+     , voucher_debited
+     , g3_count
+     , msrfr.roo_weekly_ms_gtv AS roo_weekly_ms_gtv
+     , msrfr.roo_qsr_weekly_ms_gtv AS roo_qsr_weekly_ms_gtv
+     , msrfr.roo_nqsr_weekly_ms_gtv AS roo_nqsr_weekly_ms_gtv
+
+FROM tab1
+     LEFT JOIN scratch.reference.tmp_ms_data_rfr AS msrfr
+     ON tab1.week = msrfr.week
+         AND tab1.location = msrfr.city
+;
+
+-- FINAL UNIONISED TABLE
+CREATE OR REPLACE TEMP TABLE scratch.reference.tmp_final_dashboard_extract AS
+SELECT * FROM scratch.reference.tmp_zone_metrics
+UNION ALL
+SELECT * FROM scratch.reference.tmp_inner_outer_metrics
+UNION ALL
+SELECT * FROM scratch.reference.tmp_city_metrics
+UNION ALL
+SELECT * FROM scratch.reference.tmp_country_metrics
+UNION ALL
+SELECT * FROM scratch.reference.tmp_archetype_metrics
+UNION ALL
+SELECT * FROM scratch.reference.tmp_bu_metrics
+UNION ALL
+SELECT * FROM scratch.reference.tmp_rfr_metrics
+;
+
+-- FINAL EXTRACTS
+-- IN TAB: RAW PERFORMANCE DATA
+SELECT
+    *
+FROM scratch.reference.tmp_final_dashboard_extract
+ORDER BY 2,1
+;
